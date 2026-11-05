@@ -1,6 +1,26 @@
 # 🛡️ TenderShield Nexus
 
-### Explainable Tender Assurance & Evidence Intelligence Platform
+### SDG 9.3 Procurement Restructuring & Supplier Intelligence
+
+> **Primary objective:** restructure large public contracts into technically feasible packages so capable SMEs can compete - with evidence for every package, supplier and trade-off.
+> **Secondary objective:** screen the resulting supplier pool (and, once bids arrive, the bidders) for observable cross-relationships that need human review.
+
+AI identifies evidence, alternatives, relationships and trade-offs. The procurement authority makes the final decision.
+
+| | Where |
+|---|---|
+| Restructuring engine (primary) | [`docs/restructuring.md`](docs/restructuring.md) · `backend/app/restructuring/`, `backend/app/market/` |
+| Real datasets, models, live-demo runbook | [`docs/real-data.md`](docs/real-data.md) |
+| Tender assurance pipeline (secondary) | sections below · `docs/pipeline.md` |
+
+```bash
+make setup && make data && make market   # real data -> trained models + supplier store
+make run                                  # API on :8000, see /docs
+```
+
+---
+
+## Secondary objective: explainable tender assurance
 
 > **AI finds the signals. Rules verify the facts. Blockchain protects the evidence. Humans make the final decision.**
 

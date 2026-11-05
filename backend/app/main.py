@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from .api.restructuring_routes import router as restructuring_router
 from .api.routes import router
 from .config import get_settings
 from .db import init_db
@@ -66,8 +67,9 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="TenderShield Nexus API",
         version="0.1.0",
-        description="Explainable tender assurance & evidence intelligence: rule extraction, compliance, "
-                    "relationship graph, bid intelligence, evidence reasoning, counterfactual robustness, "
+        description="SDG 9.3 procurement restructuring & supplier intelligence (primary), and explainable tender "
+                    "assurance (secondary): rule extraction, compliance, relationship graph, bid intelligence, evidence reasoning, "
+                    "counterfactual robustness, "
                     "human disposition and evidence integrity.",
         lifespan=_lifespan,
     )
@@ -79,6 +81,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router)
+    app.include_router(restructuring_router)
     # TS_STATIC_DIR points at frontend/dist in the single-container deployment.
     static_dir = os.environ.get("TS_STATIC_DIR")
     if static_dir and (Path(static_dir) / "index.html").is_file():

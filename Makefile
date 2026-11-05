@@ -3,7 +3,7 @@ PY ?= python3.12
 VENV := backend/.venv
 BIN := $(VENV)/bin
 
-.PHONY: setup setup-ml run seed demo test lint openapi clean web-setup web web-build
+.PHONY: setup setup-ml run seed demo test lint openapi clean web-setup web web-build data market
 
 setup:            ## Create the backend virtualenv and install dependencies
 	cd backend && $(PY) -m venv .venv && .venv/bin/pip install -U pip && .venv/bin/pip install -r requirements-dev.txt
@@ -28,6 +28,12 @@ lint:
 
 openapi:          ## Regenerate docs/openapi.json for the frontend
 	cd backend && .venv/bin/python -m scripts.export_openapi
+
+data:             ## Download the real public datasets into data/real/raw/
+	cd backend && .venv/bin/python -m scripts.fetch_real_data
+
+market:           ## Train models on real data and build the market (supplier) store
+	cd backend && .venv/bin/python -m scripts.build_market
 
 clean:            ## Delete generated data (database + PDFs)
 	rm -rf backend/var

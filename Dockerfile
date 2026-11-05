@@ -25,6 +25,7 @@ COPY backend/requirements.txt ./
 RUN pip install -r requirements.txt
 COPY backend/app ./app
 COPY backend/scripts ./scripts
+COPY backend/models ./models
 COPY --from=web /web/dist ./static
 RUN useradd --create-home --uid 1000 app && mkdir -p /data && chown app /data
 USER app
