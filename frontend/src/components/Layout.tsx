@@ -2,14 +2,12 @@ import {
   Fingerprint,
   Gauge,
   Grid3x3,
-  Moon,
   Network,
   RefreshCw,
   ScanSearch,
   ShieldAlert,
-  Sun,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { shortTitle } from "../lib/format";
@@ -28,33 +26,12 @@ const NAV: { to: string; label: string; icon: ReactNode }[] = [
 export function BrandMark() {
   return (
     <svg className="brand__mark" viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="8" fill="#1f3a68" />
-      <path d="M16 5 7 8.5v6.8c0 5.6 3.8 10.1 9 11.7 5.2-1.6 9-6.1 9-11.7V8.5L16 5Z" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M11.5 15.5h9M16 11v9" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity=".45" />
-      <circle cx="16" cy="15.5" r="2.6" fill="#fff" />
+      <rect width="32" height="32" rx="8" fill="#005EA2" />
+      <path d="M16 5 7 8.5v6.8c0 5.6 3.8 10.1 9 11.7 5.2-1.6 9-6.1 9-11.7V8.5L16 5Z" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M11.5 15.5h9M16 11v9" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" opacity=".45" />
+      <circle cx="16" cy="15.5" r="2.6" fill="#FFFFFF" />
     </svg>
   );
-}
-
-function useTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    try {
-      const saved = localStorage.getItem("ts-theme");
-      if (saved === "light" || saved === "dark") return saved;
-    } catch {
-      /* storage unavailable */
-    }
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem("ts-theme", theme);
-    } catch {
-      /* storage unavailable */
-    }
-  }, [theme]);
-  return [theme, () => setTheme((t) => (t === "light" ? "dark" : "light"))] as const;
 }
 
 export function Layout() {
@@ -63,7 +40,6 @@ export function Layout() {
   const findings = useFindings();
   const load = useLoadDemo();
   const toast = useToast();
-  const [theme, toggleTheme] = useTheme();
 
   const openSignals = findings.data?.filter((f) => f.category === "INVESTIGATION_SIGNAL" && ["HIGH", "MEDIUM"].includes(f.level)).length;
   const online = health.isSuccess;
@@ -132,7 +108,6 @@ export function Layout() {
           >
             {tender.data ? "Reload demo" : "Load demonstration tender"}
           </Button>
-          <Button className="icon-btn" onClick={toggleTheme} aria-label="Toggle theme" icon={theme === "light" ? <Moon size={15} /> : <Sun size={15} />} />
         </header>
         <main className="content">
           <Outlet />
