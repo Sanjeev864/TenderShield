@@ -34,14 +34,16 @@ CAPABILITIES: tuple[Capability, ...] = (
          "foundation", "pile", "road work", "bituminous", "culvert", "drain", "building", "civil work", "flooring",
          "shuttering", "formwork", "road marking", "pedestrian crossing", "junction geometry", "footpath",
          "embankment", "bridge", "retaining wall", "pavement", "kerb", "boundary wall",
-         "providing and laying", "cement concrete", "sub-base", "backfilling"),
+         "providing and laying", "cement concrete", "sub-base", "backfilling",
+         "viaduct", "elevated station", "station building", "flyover", "tunnel", "metro corridor", "protection work"),
         "works"),
     Capability(
         "electrical", "Electrical systems & power",
         ("4531", "31", "0931", "6531", "4432"),
         ("electrical", "cable", "switchgear", "transformer", "panel", "lt panel", "ht panel", "earthing", "lighting",
          "luminaire", "substation", "dg set", "diesel generator", "ups", "busbar", "wiring", "conduit", "mcb", "acb",
-         "feeder", "power supply", "solar", "inverter", "kv"),
+         "feeder", "power supply", "solar", "inverter", "kv", "sub-station", "transmission line", "gis",
+         "switchyard", "distribution line"),
         "works"),
     Capability(
         "signalling_control", "Signalling, traffic & safety control",
@@ -78,6 +80,17 @@ CAPABILITIES: tuple[Capability, ...] = (
          "pipe", "pipeline", "di pipe", "hdpe", "upvc", "sluice", "fire fighting", "sprinkler", "lift", "elevator",
          "compressor", "crane", "sewer", "water supply", "sanitary"),
         "works"),
+    Capability(
+        # CPV 422 food/beverage machinery, 423 furnaces & ovens, 426 machine tools, 427 textile, 428 paper,
+        # 4291-4294 / 4297 / 4299 process, packing and weighing machinery. Real World Bank India goods
+        # notices (agro-processing plants) were being forced into mechanical / vehicles / medical without it.
+        "industrial_machinery", "Industrial & process machinery",
+        ("422", "423", "426", "427", "428", "4291", "4292", "4293", "4294", "4297", "4299"),
+        ("processing line", "processing plant", "processing machinery", "mill", "milling", "chakki", "extruder",
+         "extrusion", "dryer", "oven", "packing machine", "packaging machine", "sealing machine", "weighing scale",
+         "weighing balance", "conveyor", "grader", "destoner", "dehuller", "roaster", "flaker", "pulverizer",
+         "machine tool", "cnc", "lathe", "boiler", "furnace", "food processing", "cold storage plant"),
+        "goods"),
     Capability(
         "structural_fabrication", "Structural steel & specialised fabrication",
         ("442", "4433", "4443", "4445", "4447", "4461", "45223", "45262"),

@@ -1,6 +1,6 @@
 {
   "model": "capability_classifier",
-  "trained_at": "2026-11-05T08:14:30+00:00",
+  "trained_at": "2026-11-12T09:49:48+00:00",
   "algorithm": "TF-IDF (word 1-2g + char 3-5g) + multinomial logistic regression, lexicon-blended at inference",
   "training_data": [
     {
@@ -17,7 +17,8 @@
     "instrumentation_sensors": 316,
     "ict_software": 851,
     "telecom_networks": 235,
-    "mechanical_hvac_plumbing": 699,
+    "mechanical_hvac_plumbing": 464,
+    "industrial_machinery": 235,
     "structural_fabrication": 213,
     "consultancy_design": 409,
     "operation_maintenance": 427,
@@ -27,22 +28,23 @@
   },
   "metrics": {
     "cv_folds": 5,
-    "cv_accuracy": 0.7933,
-    "cv_macro_f1": 0.7518,
+    "cv_accuracy": 0.7913,
+    "cv_macro_f1": 0.7397,
     "per_class_f1": {
-      "civil_works": 0.8313,
-      "consultancy_design": 0.7489,
-      "electrical": 0.7506,
-      "ict_software": 0.8144,
-      "instrumentation_sensors": 0.7538,
-      "mechanical_hvac_plumbing": 0.6812,
-      "medical_lab": 0.7929,
-      "operation_maintenance": 0.8757,
-      "other_goods_services": 0.8377,
-      "signalling_control": 0.6784,
-      "structural_fabrication": 0.5446,
-      "telecom_networks": 0.7603,
-      "vehicles_equipment": 0.7031
+      "civil_works": 0.8261,
+      "consultancy_design": 0.75,
+      "electrical": 0.7522,
+      "ict_software": 0.8185,
+      "industrial_machinery": 0.6446,
+      "instrumentation_sensors": 0.7561,
+      "mechanical_hvac_plumbing": 0.661,
+      "medical_lab": 0.7899,
+      "operation_maintenance": 0.8786,
+      "other_goods_services": 0.839,
+      "signalling_control": 0.6471,
+      "structural_fabrication": 0.5313,
+      "telecom_networks": 0.7582,
+      "vehicles_equipment": 0.7032
     }
   },
   "transfer_eval_on_annotated_tender_lines": "not run - add rows to data/annotations/capability_gold.csv (text,capability) and retrain",

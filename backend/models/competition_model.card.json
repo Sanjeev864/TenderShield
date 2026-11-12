@@ -1,6 +1,6 @@
 {
   "model": "competition_model",
-  "trained_at": "2026-11-05T08:25:23+00:00",
+  "trained_at": "2026-11-12T09:49:51+00:00",
   "algorithm": "HistGradientBoostingRegressor (Poisson loss) on log10(value ₹ Cr) + capability one-hot",
   "training_data": [
     {
@@ -258,6 +258,40 @@
       {
         "value_inr_cr": 300,
         "expected_bidders": 2.431
+      }
+    ],
+    "industrial_machinery": [
+      {
+        "value_inr_cr": 0.1,
+        "expected_bidders": 2.652
+      },
+      {
+        "value_inr_cr": 0.3,
+        "expected_bidders": 2.675
+      },
+      {
+        "value_inr_cr": 1,
+        "expected_bidders": 2.492
+      },
+      {
+        "value_inr_cr": 3,
+        "expected_bidders": 2.496
+      },
+      {
+        "value_inr_cr": 10,
+        "expected_bidders": 2.505
+      },
+      {
+        "value_inr_cr": 30,
+        "expected_bidders": 2.505
+      },
+      {
+        "value_inr_cr": 100,
+        "expected_bidders": 2.505
+      },
+      {
+        "value_inr_cr": 300,
+        "expected_bidders": 2.505
       }
     ],
     "structural_fabrication": [

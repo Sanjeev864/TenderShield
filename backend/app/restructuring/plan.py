@@ -57,10 +57,11 @@ def run_restructuring(conn: sqlite3.Connection, tender_id: str, *, weights: dict
     if tender is None:
         raise LookupError(f"Unknown tender {tender_id}")
     pages = tender_pages(conn, tender_id)
-    doc_items, doc_unassigned = items_from_documents(pages)
+    doc_items, doc_unassigned = items_from_documents(pages, title=tender["title"])
     boq = get_artifact(conn, tender_id, "boq")
     boq_items, boq_unassigned = items_from_boq(boq["rows"], boq["document_id"]) if boq else ([], [])
-    items = boq_items + doc_items if boq_items else doc_items
+    # A BOQ is the authoritative list of work items; document text then only informs dependencies.
+    items = boq_items if boq_items else doc_items
 
     estimate, estimate_src = (tender["estimated_value_cr"], {"basis": "tender record"}) if tender["estimated_value_cr"] else \
         stated_estimate_cr(pages)

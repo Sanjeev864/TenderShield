@@ -29,7 +29,7 @@ WORK_VERBS = re.compile(
     r"operat(?:e|ion)|dismantl(?:e|ing)|excavat(?:e|ion|ing)|implement(?:ation|ing)?|integrat(?:e|ion|ing)|"
     r"deploy(?:ment|ing)?|upgrad(?:e|ation)|augment(?:ation)?|repair(?:ing|s)?|painting|replacement|"
     r"retrofit(?:ting)?|survey(?:ing)?|calibrat(?:e|ion)|establish(?:ment|ing)?|improvement|marking|"
-    r"setting up|creation|provision|procurement of|strengthening|rehabilitation|widening|modernisation|modernization)\b", re.I)
+    r"setting up|creation|provision|procurement of|strengthening|rehabilitation|restor(?:e|ation|ing)|widening|modernisation|modernization)\b", re.I)
 SCOPE_SECTION = re.compile(r"\b(scope of (?:work|supply|services)|schedule of (?:quantities|requirements)|bill of quantities|"
                            r"\bboq\b|technical specifications?|work components?|description of works?|project components?|"
                            r"terms of reference)\b", re.I)
@@ -39,7 +39,21 @@ BOILERPLATE = re.compile(
     r"arbitration|jurisdiction|blacklist|debarr|power of attorney|affidavit|eligib|pre-?qualification|"
     r"bank guarantee|tender fee|document fee|signature|seal|net worth|solvency|pan card|integrity pact|"
     r"force majeure|termination|similar work|bid validity|corrigend|online bid|e-?procurement portal|"
-    r"digital signature|dsc\b|undertaking|declaration|indemnit|insurance|notice inviting tender|nit no|tender no)\b", re.I)
+    r"digital signature|dsc\b|undertaking|declaration|indemnit|insurance|notice inviting tender|nit no|tender no|"
+    # Notice / RFB boilerplate seen in real World Bank and state e-procurement notices
+    r"received financing|applied for financing|financing from|loan no|credit no|grant no|procurement regulations|"
+    r"bidding documents?|construction period|completion period|period of completion|e-?mail|mobile no|telephone|"
+    r"tel\.? no|ifsc|account no|name of bank|evaluat\w*|weightings?|registration|user id|password|website|www\.|"
+    r"https?://|implementation unit|pre-?bid|bid submission|opening of|last date|conflict of interest)\b", re.I)
+# Labelled scope fields ("Name of work: ...", "Contract title: ...") and quoted work names in invitations.
+SCOPE_FIELD = re.compile(r"^\s*(?:name of (?:the )?works?|contract title|title of (?:the )?(?:work|contract)|detail of works?|"
+                         r"description of (?:the )?works?|scope of works?)\s*[:\-–]\s*(?P<v>.{12,700})$", re.I)
+QUOTED_WORK = re.compile(r"[\"“]\s*(?P<v>[^\"”]{15,300}?)\s*[\"”]")
+# Line-item tables: a header naming the description column, then rows "<n>" / "<description>" / other cells.
+TABLE_HEADER = re.compile(r"^\s*(?:description of (?:goods|works?|items?|services)|item description|name of (?:the )?works?|"
+                          r"detail of works?|line item|particulars of (?:work|item)s?)\b", re.I)
+ROW_NO = re.compile(r"^\s*(\d{1,3})\.?\s*$")
+NUMBERED_PARA = re.compile(r"^\s*\d{1,2}\.\s+\S.{40,}")
 PAGE_NOISE = re.compile(r"^(page \d+( of \d+)?|\d+|-\s*\d+\s*-)$", re.I)
 
 MONEY = re.compile(
@@ -107,22 +121,87 @@ def is_scope_text(text: str, section: str = "") -> bool:
     return bool(WORK_VERBS.search(t)) or (bool(SCOPE_SECTION.search(section)) and bool(ITEM_START.match(t)))
 
 
-def items_from_documents(pages: list[tuple[str, int, str]], min_conf: float = 0.35) -> tuple[list[dict], list[dict]]:
-    blocks = [b for b in segment_blocks(pages) if is_scope_text(b["text"], b.get("section", ""))]
+def _clean(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().strip("\"“”").strip()).rstrip(" .;,")
+
+
+def line_item_rows(pages: list[tuple[str, int, str]]) -> list[dict]:
+    """Rows of line-item tables whose cells were flattened one per line (common in real notices and PDFs).
+
+    After a header such as "Description of Goods", a bare row number equal to the next expected row
+    ("1", "2." ...) followed by a text line starts an item; the description continues over lines that
+    open with "(" or a lowercase letter and stops at the next numeric cell.
+    """
+    rows: list[dict] = []
+    for doc, page, text in pages:
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        in_table, expected, i = False, 1, 0
+        while i < len(lines):
+            line = lines[i]
+            if TABLE_HEADER.match(line):
+                in_table, expected = True, 1
+            elif in_table and NUMBERED_PARA.match(line):
+                in_table = False
+            elif in_table and (m := ROW_NO.match(line)) and int(m.group(1)) == expected:
+                nxt = lines[i + 1] if i + 1 < len(lines) else ""
+                if re.search(r"[A-Za-z]{3}", nxt) and not ROW_NO.match(nxt) and not nxt[:1].isdigit():
+                    desc, j = nxt, i + 2
+                    while j < len(lines) and (lines[j][:1] == "(" or lines[j][:1].islower()) and not ROW_NO.match(lines[j]):
+                        desc, j = f"{desc} {lines[j]}", j + 1
+                    rows.append({"doc": doc, "page": page, "text": _clean(desc), "section": "line items"})
+                    expected += 1
+                    i = j
+                    continue
+            i += 1
+    return rows
+
+
+def scope_field_blocks(pages: list[tuple[str, int, str]]) -> list[dict]:
+    """Explicitly labelled or quoted work names: "Name of work: ...", 'invited for " Restoration of ... "'."""
+    out = []
+    for doc, page, text in pages:
+        for line in text.splitlines():
+            m = SCOPE_FIELD.match(line)
+            values = [m.group("v")] if m else [q.group("v") for q in QUOTED_WORK.finditer(line)]
+            for v in values:
+                v = _clean(v)
+                if WORK_VERBS.search(v) and not BOILERPLATE.search(v):
+                    out.append({"doc": doc, "page": page, "text": v, "section": "scope field"})
+    return out
+
+
+def items_from_documents(pages: list[tuple[str, int, str]], min_conf: float = 0.35,
+                         title: str | None = None) -> tuple[list[dict], list[dict]]:
+    """Scope items from tender text, most specific evidence first.
+
+    1. line-item table rows, 2. labelled / quoted work names, 3. scope-like paragraphs,
+    4. the tender title, used only when the documents yield nothing else.
+    """
+    tagged = [(b, "line_item") for b in line_item_rows(pages)]
+    tagged += [(b, "scope_field") for b in scope_field_blocks(pages)]
+    tagged += [(b, "document") for b in segment_blocks(pages) if is_scope_text(b["text"], b.get("section", ""))]
+    if not tagged and title and WORK_VERBS.search(title):
+        tagged = [({"doc": None, "page": None, "text": _clean(title), "section": "tender title"}, "title")]
     seen, unique = set(), []
-    for b in blocks:
-        key = re.sub(r"\W+", " ", b["text"].lower())[:160]
-        if key not in seen:
-            seen.add(key)
-            unique.append(b)
+    for b, src in tagged:
+        b = {**b, "source": src}
+        key = re.sub(r"\W+", " ", b["text"].lower()).strip()
+        # Skip exact repeats and paragraphs that only restate an item already taken.
+        if key in seen or any(key in k or k in key for k in seen if min(len(k), len(key)) >= 25):
+            continue
+        seen.add(key)
+        unique.append(b)
     preds = classify([ITEM_START.sub("", b["text"]) for b in unique])
     items, unassigned = [], []
     for b, (cap, conf, dist, hits) in zip(unique, preds):
         item = {"text": b["text"][:600], "document_id": b["doc"], "page": b["page"], "section": b.get("section") or None,
                 "capability": cap,
                 "confidence": round(conf, 3), "alternatives": dist, "keywords": sorted({k for v in hits.values() for k in v}),
-                "amount_inr_cr": None if ESTIMATE.search(b["text"]) else parse_money_cr(b["text"]), "source": "document"}
-        (items if cap != OTHER and conf >= min_conf else unassigned).append(item)
+                "amount_inr_cr": None if ESTIMATE.search(b["text"]) else parse_money_cr(b["text"]), "source": b["source"]}
+        # Table rows, labelled work names and the title are explicit scope: keep them even at low
+        # confidence (flagged in data quality). Free-text paragraphs need min_conf.
+        explicit = b["source"] != "document"
+        (items if cap != OTHER and (explicit or conf >= min_conf) else unassigned).append(item)
     return items, unassigned
 
 
@@ -209,7 +288,7 @@ def build_components(items: list[dict], estimate_cr: float | None, overrides: di
     comps = []
     for cap, its in sorted(by_cap.items(), key=lambda kv: -len(kv[1])):
         boq_vals = [i["amount_inr_cr"] for i in its if i["source"] == "boq" and i["amount_inr_cr"]]
-        doc_vals = [i["amount_inr_cr"] for i in its if i["source"] == "document" and i["amount_inr_cr"]]
+        doc_vals = [i["amount_inr_cr"] for i in its if i["source"] != "boq" and i["amount_inr_cr"]]
         if boq_vals:
             value, basis = sum(boq_vals), "boq"
         elif doc_vals:

@@ -1,7 +1,7 @@
 import csv, io, json, os, sys
 from pathlib import Path
 SCR = Path(sys.argv[1]); REPO = Path(sys.argv[2])
-os.environ.update(TS_DATA_DIR=str(SCR / "real/data"), TS_MODELS_DIR=str(SCR / "real/models"), TS_MARKET_COUNTRIES="India")
+os.environ.update(TS_DATA_DIR=str(SCR / "real/run2"), TS_MARKET_DB=str(SCR / "real/data/market.db"), TS_MARKET_COUNTRIES="India")
 sys.path.insert(0, str(REPO / "backend"))
 import logging; logging.disable(logging.INFO)
 from fastapi.testclient import TestClient
@@ -29,7 +29,7 @@ buf = io.StringIO(); w = csv.writer(buf); w.writerow(["Description", "Qty", "Uni
 for t, q in items: w.writerow([t, q, "Nos", "", ""])
 r = c.post(f"/api/tenders/{tid}/boq", files={"file": ("boq.csv", buf.getvalue().encode(), "text/csv")}); print("boq", r.status_code, r.json())
 r = c.post(f"/api/tenders/{tid}/restructure", json={}); p = r.json(); print("restructure", r.status_code, p.get("recommendation", {}).get("headline", p))
-(SCR / "real/results/OP00474853/plan_with_boq.json").write_text(r.text)
+(SCR / "real/results2/OP00474853/plan_with_boq.json").write_text(r.text)
 for comp in p["components"]:
     print(f"  comp {comp['label']:<40} items={comp['n_items']} basis={comp['value_basis']} conf={comp['mean_confidence']} src={[i.get('source') for i in comp['items']]}")
 for e in p["dependency_graph"]["edges"]: print(f"  dep {e['source']}<->{e['target']} {e['strength']} {e['types']} | {e['prior_rationale'][:90]}")

@@ -42,6 +42,10 @@ PRIORS: dict[frozenset, tuple[float, str, str]] = {
         ("mechanical_hvac_plumbing", "instrumentation_sensors"): (0.40, "interface", "Flow/pressure instruments are fitted on mechanical systems."),
         ("structural_fabrication", "mechanical_hvac_plumbing"): (0.35, "installation", "Tanks, supports and pipe racks carry mechanical equipment."),
         ("electrical", "ict_software"): (0.30, "interface", "Control panels and software share I/O definitions."),
+        ("electrical", "industrial_machinery"): (0.40, "interface", "Process machines need power supply, starters and controls."),
+        ("civil_works", "industrial_machinery"): (0.30, "installation", "Machine foundations and plant sheds are civil scope."),
+        ("industrial_machinery", "mechanical_hvac_plumbing"): (0.35, "interface", "Process lines share utilities (air, water, steam)."),
+        ("industrial_machinery", "instrumentation_sensors"): (0.30, "interface", "Process instruments are fitted on the machines."),
     }.items()
 }
 DEFAULT_PRIOR = (0.15, "schedule", "Shared site and programme only.")

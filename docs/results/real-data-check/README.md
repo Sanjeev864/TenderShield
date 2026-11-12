@@ -1,17 +1,22 @@
 # Real-data check: 2026-11-12
 
 This was run on branch `feature/sdg93-upgrade` against downloaded public datasets and three real
-World Bank-financed Indian tenders. Every number below comes from the run. The raw downloads are listed in
-`data/real/raw/MANIFEST.json`. The scripts are `run_real.py` (notice PDF in, plan and dossier out) and
-`run_boq.py` (the same tender with its line items given as a BOQ).
+World Bank-financed Indian tenders. Every number below comes from a run. The raw downloads are listed in
+`data/real/raw/MANIFEST.json`.
+
+- `run_real.py`: renders each notice to PDF, uploads it, restructures it and generates the dossier.
+- `run_boq.py`: gives the millet tender's line items as a BOQ. It was used for the "before" run.
+- `<notice>/plan_before*.json`: output before the extraction fix.
+- `<notice>/plan.json`: output after the fix.
 
 ## Verdict
 
-**The system works end to end on real data, but on real tender notices it produces wrong
-restructuring advice.** Several parts work as designed: the data download, model training, the
-market store, upload, the API, the dossier and the database. The weak point is the first step,
-turning real tender text into work items. It picks up boilerplate sentences and misses the actual
-line items, so every later step reasons over the wrong components.
+**Before the fix:** the system ran end to end but gave wrong advice. It built its components from
+boilerplate (a financing sentence, an office name, a contact line) and missed the real line items.
+
+**After the fix:** for all three tenders, the components now match what the notice actually procures,
+and the advice ("keep as one contract") is correct for notices that each cover one capability.
+Package values are still unknown, so scale checks and package sizing cannot run (see the limits below).
 
 ## 1. Data collected
 
@@ -19,58 +24,63 @@ line items, so every later step reasons over the wrong components.
 |---|---|---|
 | CPV 2008 vocabulary | 9,454 codes | Training data for the capability classifier |
 | Prozorro (Ukraine) lots / bids / contracts | 92,802 lots, 238,228 bids, 95,272 contracts | Competition model; co-bidding |
-| World Bank Major Contract Awards, India | 12,436 rows read, 7,434 awards stored | **Signing dates 1992-11-28 to 2020-01-01 only.** The primary World Bank URL returned 404; the mirror file stops in January 2020 |
-| World Bank procurement notices, India | 500 notices (134 Invitations for Bids) | Source of the real tenders tested |
-| Market store built | 102,706 awards, 238,228 bids, 43,416 supplier profiles | Indian suppliers come from World Bank awards only |
+| World Bank Major Contract Awards, India | 12,436 rows read, 7,434 awards stored | Signing dates 1992-11-28 to 2020-01-01. The primary World Bank URL returns 404; the mirror stops in January 2020 |
+| World Bank procurement notices, India | 500 notices (134 Invitations for Bids) | Source of the tested tenders |
+| Market store | 102,706 awards, 238,228 bids, 43,416 supplier profiles | Indian suppliers come from World Bank awards only |
 
-Retraining from scratch reproduced the committed model cards exactly:
+Model results:
 
-- Capability classifier: CV macro-F1 0.7518.
-- Competition model: Poisson deviance 0.6907 against a 0.7008 baseline, on 14,170 held-out lots.
+| Model | Before | After the fix (14 capabilities) |
+|---|---|---|
+| Capability classifier, 5-fold CV on CPV | macro-F1 0.7518, accuracy 0.79 | macro-F1 0.7397, accuracy 0.7913. The new `industrial_machinery` class scores F1 0.64 |
+| Competition model, held-out 14,170 lots | Poisson deviance 0.6907 vs 0.7008 baseline | unchanged |
 
-**Bugs found and fixed in `backend/scripts/fetch_real_data.py`:**
-- **SSL errors:** every download failed with `CERTIFICATE_VERIFY_FAILED` on macOS python.org builds. The script now uses the certifi CA bundle.
-- **Wrong India filter:** the notices query used `countryshortname_exact`, which the API ignores, so only 11 of 500 notices were Indian. It now uses `project_ctry_name_exact` (500 of 500 Indian).
+The macro-F1 drop comes from adding a 14th, harder class. Accuracy did not change.
 
-## 2-8. Three real tenders end to end
+## 2-5. Three real tenders, before and after
 
-| Tender (World Bank notice) | What it really is | What TenderShield extracted | Result |
+| Tender | What it procures | Before | After |
 |---|---|---|---|
-| OP00474853, SMART Maharashtra | Supply, installation, testing and commissioning (SITC) of a millet processing plant: 9 line items (processing, milling, extrusion, cookie and flaking lines, packing and weighing machines) | 2 "components" from boilerplate: a World Bank financing sentence as *Software/ICT* (conf 0.45), "Project Implementation Unit – Agriculture" as *Medical & lab* (0.36). None of the 9 line items | "Consider 2 packages" (**wrong basis**) |
-| OP00471901, Gurugram Metro Pkg-2 | Viaduct and elevated stations, 13.3 km | "Construction Period: 30 months" as *Civil* (0.92), a bidder-contact sentence as *Software/ICT* (0.51) | "Consider 2 packages" (**wrong basis**) |
-| OP00464558, PTCUL Uttarakhand | EPC restoration of a 132 kV GIS substation and line; bid security Rs 75 lakh, 18 months | Nothing | HTTP 422 "No scope items could be identified" (honest failure) |
+| **OP00474853**, SMART Maharashtra: millet processing plant, supply, installation, testing and commissioning | 9 line items: processing, milling, extrusion, cookie and flaking lines; vacuum packing, band sealing, weighing balance, platform scale | 2 components built from boilerplate (a financing sentence as *ICT*, a PIU name as *Medical*). "Consider 2 packages" | **All 9 line items** extracted as `line_item` and classified *Industrial & process machinery* (confidence 0.31–0.98). One component, keep integrated. 34 suppliers have capability evidence |
+| **OP00471901**, Gurugram Metro Pkg-2 | Viaduct and elevated stations, 13.3 km | "Construction Period: 30 months" as *Civil*, a bidder-contact line as *ICT*. "Consider 2 packages" | The "Name of work" field extracted and classified *Civil*. One component. 888 suppliers have civil evidence, 677 of them small by the size proxy |
+| **OP00464558**, PTCUL Uttarakhand | Restoration of a 132 kV GIS substation and line (EPC) | No items found, HTTP 422 | The quoted "Detail of Work" extracted and classified *Electrical*. 257 suppliers. Top of the shortlist: L&T, ABB, Alstom, Alstom T&D, BHEL, all real substation contractors |
 
-With the millet line items given as a BOQ (`run_boq.py`), the classifier labelled the 9 real items as:
-- *Mechanical/HVAC/plumbing*: 4 items.
-- *Vehicles & heavy equipment*: 2 items.
-- *Medical & lab*: 1 item.
-- *Other*: 2 items.
+In all three, the boilerplate is gone: financing text, the implementation unit, the construction period, email, mobile and IFSC lines.
 
-The recommendation became "keep as one integrated contract". The top suppliers were ABB, L&T and Swaraj Mazda, which are not credible for millet machinery. All dependencies came out "weak – shared site only". Weight sensitivity: the recommendation stays best in 67% of 300 perturbations.
+## What was changed
 
-## Why it fails
+1. **Line-item tables.** Notice and PDF tables arrive with one cell per line. Rows are now read after a header such as
+   "Description of Goods", "Detail of Work" or "Name of Work", using sequential row numbers.
+   - Before, bare numbers were dropped as page noise, and goods items without a work verb were filtered out.
+2. **Labelled and quoted work names.** "Name of work:", "Contract title:" and quoted work names in invitations are now read.
+3. **Boilerplate filter.** It now also covers financing and loan text, procurement regulations, contact and bank
+   details, registration, construction or completion periods, and evaluation weightings.
+4. **Tender title as a fallback.** The title is used when the documents give no scope.
+5. **Explicit items are kept.** Table rows and labelled fields are kept at low confidence (they are flagged in data
+   quality). Only free-text paragraphs need confidence 0.35 or more.
+6. **BOQ handling.** When a BOQ is uploaded, it is the item list. Document text no longer adds extra components.
+7. **New capability.** `industrial_machinery` covers CPV 422/423/426–428/4291–4294/4297/4299: food processing, ovens,
+   machine tools, packing and weighing machinery. Dependency priors were added for it.
+   - Civil and electrical lexicon terms were added from the real notices: viaduct, elevated station, sub-station,
+     transmission line, GIS.
+8. **Tests.** `tests/test_real_notices.py` checks all of this against the three real notices (74 tests pass).
 
-1. **Item extraction (`components.items_from_documents`).** The tables in real notices become long flattened lines that fall outside the 30–900 character scope filter or the work-verb regex. Generic sentences with words like "Government" or "construction" get through. The document pages are still mixed into the components even when a BOQ is supplied (`boq_items + doc_items`).
-2. **Taxonomy gap.** There is no category for food processing or industrial process machinery, so agro-processing items get forced into mechanical, vehicles or medical.
-3. **Classifier transfer.** It is trained only on CPV code descriptions, which are short and EU-styled. Its confidence on real Indian BOQ lines was 0.29–0.96, with clear mislabels. There is no Indian gold set yet, so real accuracy is **unmeasured**.
-4. **Stale Indian market data.** The World Bank mirror ends in January 2020 and `TS_RECENT_YEARS=7` keeps only awards from 2019 on, so almost all Indian award evidence is ignored. "Meet similar-work scale" was 0 for every package.
-5. **No Indian bid data.** Co-bidding detection only has Ukrainian bids, so the Indian supplier relationship screening found 0 relationships to review in every run. That reflects missing data, not an absence of relationships.
-6. **Values missing.** None of the three notices yielded an estimated value. The Rs 75 lakh bid security was not used as a hint, so every package value is "unknown".
+## Remaining limits found on real data
 
-## Not measurable yet (needs gold labels)
-
-- Requirement extraction: precision, recall and F1.
-- Classification accuracy on Indian tender lines.
-- Supplier matching precision and ranking quality.
-- Package generation compared with an expert split.
-- Relationship-detection false-positive rate.
-
-## Suggested next fixes, in order
-
-1. Extract table rows and line items from tender text, and do not mix document items in when a BOQ exists.
-2. Add an "industrial / process machinery" capability (and check the other gaps against the 134 Indian IFBs).
-3. Label about 300 real Indian tender and BOQ lines into `data/annotations/capability_gold.csv`, then retrain and measure.
-4. Get current Indian award data (a fresh World Bank export from a browser, CPPP award notices, or OCDS) and confirm the
-   date coverage before trusting the supplier pools.
-5. Use full bidding documents (scope and BOQ sections from the state e-procurement portals), not only the notice, for the
-   end-to-end demonstration.
+- **No values.** None of the three notices states an estimated value. Package values are therefore unknown, so the
+  similar-work scale check reports "package value unknown" and SME sizing cannot run. The Rs 75 lakh bid security is
+  not used as a hint. The full bidding documents (BOQ and estimate) from the state portals are needed.
+- **Notices are too coarse to split.** Each notice describes one capability, so there is nothing to restructure. A
+  meaningful demonstration needs a full bidding document with a multi-trade scope or BOQ.
+- **Items in one capability are never split.** For example, the processing lines and the packing/weighing machines
+  stay together because both are industrial machinery. An expert might split them.
+- **Thin and old evidence for machinery.** The 34 machinery suppliers have only 1–2 awards each, and the latest is
+  from 2002–2012. Some are machine-tool or lab-equipment firms, not food-processing firms.
+  - The World Bank mirror stops in 2020. Correction to the first report: the 7-year window only lowers a supplier's
+    ranking, it does not exclude older awards.
+- **Supplier names are not merged.** "ALSTOM LTD.", "M/S ALSTOM LTD., JAIPUR" and "ALSTOM T&D INDIA LIMITED" are
+  separate suppliers, and the Jaipur one is wrongly marked "small" by the size proxy.
+- **No Indian bid data.** Relationship screening found 0 relationships to review in every run, because there are no
+  Indian bids to compare.
+- **Real accuracy is unmeasured.** Extraction precision/recall/F1, classification accuracy on Indian lines, matching
+  precision and package agreement with experts all need hand-labelled gold sets.
