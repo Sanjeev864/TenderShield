@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import ssl
 import sys
 import time
 import urllib.error
@@ -44,7 +45,7 @@ SOURCES = {
     ],
     "wb_notices": [
         ("https://search.worldbank.org/api/v2/procnotices?" + urllib.parse.urlencode(
-            {"format": "json", "countryshortname_exact": "India", "rows": 500, "os": 0,
+            {"format": "json", "project_ctry_name_exact": "India", "rows": 500, "os": 0,
              "fl": "id,bid_description,project_ctry_name,project_id,project_name,notice_type,notice_status,"
                    "submission_date,noticedate,procurement_group,procurement_method_name,notice_text"}),
          RAW / "worldbank" / "procurement_notices_india.json"),
@@ -58,6 +59,19 @@ FALLBACKS = {
 
 
 RETRIES = 4
+
+
+def _ssl_context() -> ssl.SSLContext:
+    # python.org builds on macOS ship without system CA certificates; use certifi's bundle when present.
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+SSL_CONTEXT = _ssl_context()
 TRANSIENT_HTTP = {408, 425, 429, 500, 502, 503, 504}
 
 
@@ -84,7 +98,7 @@ def _download_once(url: str, dest: Path) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": "TenderShield-Nexus/1.0 (research; open data)"})
     digest = hashlib.sha256()
     tmp = dest.with_suffix(dest.suffix + ".part")
-    with urllib.request.urlopen(req, timeout=300) as resp, open(tmp, "wb") as fh:
+    with urllib.request.urlopen(req, timeout=300, context=SSL_CONTEXT) as resp, open(tmp, "wb") as fh:
         for chunk in iter(lambda: resp.read(1 << 20), b""):
             fh.write(chunk)
             digest.update(chunk)

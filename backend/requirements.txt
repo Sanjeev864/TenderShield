@@ -23,3 +23,5 @@ scikit-learn>=1.5
 # LLM requirement extraction (optional at runtime; falls back to pattern extractor)
 anthropic>=1,<2
 openpyxl>=3.1
+# CA bundle for real-data downloads (macOS python.org builds lack system certificates)
+certifi>=2024.2
