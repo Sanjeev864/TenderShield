@@ -195,7 +195,9 @@ def test_jv_and_cobidding_relationships(market):
 def test_restructuring_api_end_to_end(analyzed, market):
     from app.main import app
 
-    c = TestClient(app)
+    from .conftest import auth_headers
+
+    c = TestClient(app, headers=auth_headers("officer"))
     tid = analyzed["tender_id"]
     boq = "Description,Qty,Unit,Rate,Amount\nSITC of adaptive traffic signal controllers,120,Nos,1500000,\n" \
           "Command centre software and video wall integration,1,LS,90000000,\nRoad marking and junction geometry works,1,LS,,40000000\n" \

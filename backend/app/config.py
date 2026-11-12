@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +17,20 @@ except ImportError:  # python-dotenv is optional
     pass
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+log = logging.getLogger(__name__)
+# Used only when TS_AUTH_SECRET is unset outside production: sessions then end on restart.
+_EPHEMERAL_SECRET = secrets.token_urlsafe(48)
+
+
+def _auth_secret() -> str:
+    value = os.environ.get("TS_AUTH_SECRET", "")
+    if value:
+        if len(value) < 32:
+            raise RuntimeError("TS_AUTH_SECRET must be at least 32 characters")
+        return value
+    if os.environ.get("TS_ENV", "development") == "production":
+        raise RuntimeError("TS_AUTH_SECRET is required when TS_ENV=production")
+    return _EPHEMERAL_SECRET
 
 
 def _env(name: str, default: str) -> str:
@@ -34,6 +50,11 @@ class Settings:
     # It is never loaded automatically; /api/demo/* returns 404 unless this is enabled.
     enable_demo: bool = field(default_factory=lambda: _env("TS_ENABLE_DEMO", "0").lower() in {"1", "true", "yes"})
     random_seed: int = field(default_factory=lambda: int(_env("TS_RANDOM_SEED", "14")))
+    env: str = field(default_factory=lambda: _env("TS_ENV", "development"))
+    auth_secret: str = field(default_factory=_auth_secret)
+    session_minutes: int = field(default_factory=lambda: int(_env("TS_SESSION_MINUTES", "480")))
+    admin_email: str = field(default_factory=lambda: _env("TS_ADMIN_EMAIL", ""))
+    admin_password: str = field(default_factory=lambda: _env("TS_ADMIN_PASSWORD", ""))
     cors_origins: tuple[str, ...] = field(
         default_factory=lambda: tuple(
             o.strip()

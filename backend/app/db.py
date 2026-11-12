@@ -128,6 +128,15 @@ CREATE TABLE IF NOT EXISTS audit_log (
     prev_hash TEXT NOT NULL,
     entry_hash TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS snapshots (
     snapshot_id TEXT PRIMARY KEY,
     tender_id TEXT NOT NULL,
@@ -170,10 +179,16 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
 
 
+KEEP_ON_RESET = {"users"}
+
+
 def reset_db() -> None:
-    path = _db_path()
-    if path.exists():
-        path.unlink()
+    """Drop all procurement data. User accounts survive so a reset never locks people out."""
+    with session() as conn:
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+                  if r[0] not in KEEP_ON_RESET and not r[0].startswith("sqlite_")]
+        for name in tables:
+            conn.execute(f'DROP TABLE "{name}"')
     init_db()
 
 

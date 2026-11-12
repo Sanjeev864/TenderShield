@@ -2,6 +2,7 @@ import {
   Boxes,
   Fingerprint,
   Gauge,
+  LogOut,
   Grid3x3,
   Network,
   ScanSearch,
@@ -11,10 +12,11 @@ import {
 import { type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import { useAuth } from "../lib/auth";
 import { useFindings, useTender, useTenders, useTid } from "../lib/hooks";
 import { useCurrentTender } from "../lib/tender";
 import { NotLoaded } from "./NotLoaded";
-import { Badge } from "./ui";
+import { Badge, Button } from "./ui";
 
 type NavItem = { to: string; label: string; icon: ReactNode };
 
@@ -70,6 +72,18 @@ function TenderPicker() {
   );
 }
 
+function UserMenu() {
+  const { user, logout } = useAuth();
+  if (!user) return null;
+  return (
+    <div className="user-menu">
+      <span title={user.email}>{user.name || user.email}</span>
+      <Badge tone={user.role === "viewer" ? "outline" : "brand"}>{user.role}</Badge>
+      <Button className="icon-btn" onClick={logout} aria-label="Sign out" title="Sign out" icon={<LogOut size={15} />} />
+    </div>
+  );
+}
+
 export function Layout() {
   const tid = useTid();
   const tender = useTender();
@@ -121,6 +135,7 @@ export function Layout() {
             <TenderPicker />
           </div>
           <div className="topbar__spacer" />
+          <UserMenu />
         </header>
         <main className="content">{needsTender ? <NotLoaded what="tender" /> : <Outlet />}</main>
       </div>

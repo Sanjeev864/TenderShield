@@ -20,7 +20,7 @@ import type { Snapshot, Verification } from "../api/types";
 import { MST_TESTNET_EXPLORER, TENDERSHIELD_CONTRACT_ADDRESS } from "../blockchain/config";
 import { commitEvidenceToBlockchain, connectWallet, contractConfigured, getEvidence, walletError, type EvidenceRecord } from "../blockchain/wallet";
 import { ErrorCard, NotLoaded } from "../components/NotLoaded";
-import { Badge, Button, Callout, Card, LoadingBlock, PageHead, useToast } from "../components/ui";
+import { Badge, Button, Callout, Card, LoadingBlock, openDoc, PageHead, useToast } from "../components/ui";
 import { fmtDateTime, humanize, shortHash } from "../lib/format";
 import { isNotLoaded, useHealth, useTid, useAuditLog, useSnapshots, useTender } from "../lib/hooks";
 
@@ -224,7 +224,7 @@ export function Integrity() {
         title="Evidence integrity"
         sub="Sensitive documents stay off-chain. Only the fingerprint of the finalised evidence state is committed, so any later change to a document, finding or decision is detectable."
         actions={
-          <a className="btn" href={api.dossierUrl(TID)} target="_blank" rel="noreferrer">
+          <a className="btn" href={api.dossierUrl(TID)} onClick={openDoc} target="_blank" rel="noreferrer">
             <Download size={15} /> Dossier data (JSON)
           </a>
         }

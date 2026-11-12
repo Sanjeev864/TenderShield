@@ -8,25 +8,21 @@ from __future__ import annotations
 
 import logging
 import os
-from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .api.restructuring_routes import router as restructuring_router
 from .api.routes import router
+from .auth import authenticate, bootstrap_admin
+from .auth import router as auth_router
 from .config import get_settings
 from .db import init_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
-
-
-@asynccontextmanager
-async def _lifespan(_: FastAPI):
-    yield
 
 
 def _mount_frontend(app: FastAPI, dist: Path) -> None:
@@ -47,6 +43,7 @@ def _mount_frontend(app: FastAPI, dist: Path) -> None:
 def create_app() -> FastAPI:
     settings = get_settings()
     init_db()
+    bootstrap_admin()
     app = FastAPI(
         title="TenderShield Nexus API",
         version="0.1.0",
@@ -54,15 +51,27 @@ def create_app() -> FastAPI:
                     "assurance (secondary): rule extraction, compliance, relationship graph, bid intelligence, evidence reasoning, "
                     "counterfactual robustness, "
                     "human disposition and evidence integrity.",
-        lifespan=_lifespan,
+        dependencies=[Depends(authenticate)],
     )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
         allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
     )
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        if request.url.path.startswith("/api"):
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    app.include_router(auth_router)
     app.include_router(router)
     app.include_router(restructuring_router)
     # TS_STATIC_DIR points at frontend/dist in the single-container deployment.

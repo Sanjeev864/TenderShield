@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app.db import fetch_one, reset_db, session
 from app.main import create_app
 
-from .conftest import TENDER
+from .conftest import TENDER, auth_headers
 
 
 def test_serves_dashboard_with_spa_fallback(tmp_path, monkeypatch):
@@ -23,7 +23,7 @@ def test_serves_dashboard_with_spa_fallback(tmp_path, monkeypatch):
             r = c.get(path)
             assert r.status_code == 200 and "id=root" in r.text
         # Unknown API paths stay JSON 404s instead of returning the dashboard.
-        r = c.get("/api/does-not-exist")
+        r = c.get("/api/does-not-exist", headers=auth_headers())
         assert r.status_code == 404 and r.headers["content-type"] == "application/json"
         # Files outside the static directory are never served.
         assert "nope" not in c.get("/%2e%2e/secret.txt").text
@@ -39,7 +39,7 @@ def test_empty_database_stays_empty(monkeypatch):
     """No fabricated records are loaded on start-up, whatever the environment says."""
     reset_db()
     monkeypatch.setenv("TS_AUTOLOAD_DEMO", "1")
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(), headers=auth_headers()) as c:
         assert c.get(f"/api/tenders/{TENDER}").status_code == 404
         assert c.get("/api/tenders").json() == []
     with session() as conn:
@@ -48,6 +48,6 @@ def test_empty_database_stays_empty(monkeypatch):
 
 def test_demo_routes_disabled_by_default(monkeypatch):
     monkeypatch.setenv("TS_ENABLE_DEMO", "0")
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(), headers=auth_headers()) as c:
         assert c.get("/api/health").status_code == 200
         assert c.post("/api/demo/load").status_code == 404

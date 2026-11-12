@@ -20,7 +20,9 @@ import { Findings } from "./pages/Findings";
 import { Intelligence } from "./pages/Intelligence";
 import { Landing, Overview } from "./pages/Overview";
 import { Restructuring } from "./pages/Restructuring";
+import { AuthProvider, useAuth } from "./lib/auth";
 import { TenderProvider } from "./lib/tender";
+import { Login } from "./pages/Login";
 
 // Cytoscape is the heaviest dependency; load it only when the graph page opens.
 const GraphPage = lazy(() => import("./pages/Graph").then((m) => ({ default: m.GraphPage })));
@@ -69,14 +71,23 @@ const router = createBrowserRouter([
   },
 ]);
 
+function App() {
+  const { user, checking } = useAuth();
+  if (checking) return <LoadingBlock rows={6} />;
+  if (!user) return <Login />;
+  return <RouterProvider router={router} />;
+}
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <TenderProvider>
-        <ToastProvider>
-          <RouterProvider router={router} />
-        </ToastProvider>
-      </TenderProvider>
+      <AuthProvider>
+        <TenderProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </TenderProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

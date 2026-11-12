@@ -6,6 +6,7 @@ import { ErrorCard } from "../components/NotLoaded";
 import { Badge, Button, Callout, Card, LevelBadge, LoadingBlock, PageHead, StatTile, StatusBadge } from "../components/ui";
 import { CATEGORY_LABEL, fmtCr, fmtDateTime, levelColor, prettyTitle, shortTitle } from "../lib/format";
 import { isNotLoaded, useCompliance, useFindings, useRules, useTender, useTenders, useTid, useUploadTender } from "../lib/hooks";
+import { useAuth } from "../lib/auth";
 import { useCurrentTender } from "../lib/tender";
 
 /** Shown when no tender is selected: invites a real upload. Nothing is pre-populated. */
@@ -17,6 +18,7 @@ export function Landing() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [department, setDepartment] = useState("");
+  const { can } = useAuth();
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -43,6 +45,9 @@ export function Landing() {
 
       <div className="grid grid--main-side">
         <Card title="Upload a tender" icon={<Upload size={15} />}>
+          {!can("officer") ? (
+            <p className="dim" style={{ fontSize: 13 }}>Your account is read-only. A procurement officer uploads tenders.</p>
+          ) : (
           <form className="stack" onSubmit={submit}>
             <div className="field">
               <label htmlFor="tender-file">Tender document (PDF, digital text)</label>
@@ -64,6 +69,7 @@ export function Landing() {
             </div>
             {upload.isError && <Callout tone="danger">{upload.error instanceof Error ? upload.error.message : String(upload.error)}</Callout>}
           </form>
+          )}
         </Card>
 
         <Card title="Existing tenders" icon={<FileStack size={15} />} flush>

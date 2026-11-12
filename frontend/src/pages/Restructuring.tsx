@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Boxes, Download, FileUp, GitBranch, Link2, Play, Scale, TableProperties, Users } from "lucide-react";
 import { useRef } from "react";
 
-import { api } from "../api/client";
+import { api, openAuthed } from "../api/client";
 import type { RestructuringPlan, Scenario } from "../api/types";
 import { ErrorCard } from "../components/NotLoaded";
 import { Badge, Button, Callout, Card, EmptyState, LoadingBlock, PageHead, StatTile, useToast } from "../components/ui";
 import { fmtCr, fmtDateTime } from "../lib/format";
+import { useAuth } from "../lib/auth";
 import { isNotLoaded, useTender, useTid } from "../lib/hooks";
 
 const SCENARIO_LABEL: Record<string, string> = {
@@ -129,9 +130,9 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
   const toast = useToast();
   const rec = plan.recommendation;
   const labelOf = Object.fromEntries(plan.components.map((c) => [c.component_id, c.label]));
+  // The tab must open inside the click, so generation runs inside openAuthed.
   const dossier = useMutation({
-    mutationFn: () => api.restructuringDossier(tid),
-    onSuccess: () => window.open(api.restructuringDossierUrl(tid), "_blank", "noopener"),
+    mutationFn: () => openAuthed(async () => { await api.restructuringDossier(tid); return api.restructuringDossierUrl(tid); }),
     onError: (e) => toast(<span>Could not generate the dossier: {errText(e)}</span>),
   });
   const review = plan.relationships.edges.filter((e) => e.review_score >= 0.35);
@@ -277,6 +278,7 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
 
 export function Restructuring() {
   const tid = useTid();
+  const { can } = useAuth();
   const tender = useTender();
   const plan = useQuery({
     queryKey: ["restructuring", tid],
@@ -295,7 +297,7 @@ export function Restructuring() {
         title={tender.data?.title ?? tid}
         sub="Which parts of this tender can be procured separately so that small and medium enterprises can compete, and which must stay together."
       />
-      <Inputs tid={tid} hasPlan={!!plan.data} />
+      {can("officer") && <Inputs tid={tid} hasPlan={!!plan.data} />}
       {plan.isLoading && <LoadingBlock rows={6} />}
       {notRun && (
         <Card>
