@@ -30,6 +30,9 @@ class Settings:
     # Bid similarity: "tfidf" (offline, deterministic) or "sbert" (requires requirements-ml.txt).
     embedding_backend: str = field(default_factory=lambda: _env("TS_EMBEDDING_BACKEND", "tfidf"))
     sbert_model: str = field(default_factory=lambda: _env("TS_SBERT_MODEL", "all-MiniLM-L6-v2"))
+    # The fabricated demonstration dataset (TN-2026-014) is for tests and local rehearsal only.
+    # It is never loaded automatically; /api/demo/* returns 404 unless this is enabled.
+    enable_demo: bool = field(default_factory=lambda: _env("TS_ENABLE_DEMO", "0").lower() in {"1", "true", "yes"})
     random_seed: int = field(default_factory=lambda: int(_env("TS_RANDOM_SEED", "14")))
     cors_origins: tuple[str, ...] = field(
         default_factory=lambda: tuple(

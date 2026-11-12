@@ -1,21 +1,32 @@
 import {
+  Boxes,
   Fingerprint,
   Gauge,
   Grid3x3,
   Network,
-  RefreshCw,
   ScanSearch,
   ShieldAlert,
+  Upload,
 } from "lucide-react";
 import { type ReactNode } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { shortTitle } from "../lib/format";
-import { useFindings, useHealth, useLoadDemo, useTender } from "../lib/hooks";
-import { Badge, Button, useToast } from "./ui";
+import { useFindings, useTender, useTenders, useTid } from "../lib/hooks";
+import { useCurrentTender } from "../lib/tender";
+import { NotLoaded } from "./NotLoaded";
+import { Badge } from "./ui";
 
-const NAV: { to: string; label: string; icon: ReactNode }[] = [
-  { to: "/", label: "Overview", icon: <Gauge size={16} /> },
+type NavItem = { to: string; label: string; icon: ReactNode };
+
+// Primary objective: restructure the procurement so SMEs can compete.
+const PRIMARY: NavItem[] = [
+  { to: "/", label: "Tenders", icon: <Upload size={16} /> },
+  { to: "/restructuring", label: "Restructuring plan", icon: <Boxes size={16} /> },
+];
+
+// Secondary objective: assurance on the bids received.
+const ASSURANCE: NavItem[] = [
+  { to: "/assurance", label: "Assurance overview", icon: <Gauge size={16} /> },
   { to: "/compliance", label: "Rules & compliance", icon: <Grid3x3 size={16} /> },
   { to: "/graph", label: "Relationship graph", icon: <Network size={16} /> },
   { to: "/intelligence", label: "Bid intelligence", icon: <ScanSearch size={16} /> },
@@ -34,26 +45,54 @@ export function BrandMark() {
   );
 }
 
+function TenderPicker() {
+  const tenders = useTenders();
+  const { tid, setTid } = useCurrentTender();
+  const navigate = useNavigate();
+  return (
+    <select
+      className="select"
+      aria-label="Current tender"
+      style={{ maxWidth: 360 }}
+      value={tid ?? ""}
+      onChange={(e) => {
+        setTid(e.target.value || null);
+        if (!e.target.value) navigate("/");
+      }}
+    >
+      <option value="">{tenders.data?.length ? "Select a tender…" : "No tenders uploaded"}</option>
+      {tenders.data?.map((t) => (
+        <option key={t.tender_id} value={t.tender_id}>
+          {t.tender_id} · {t.title}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function Layout() {
-  const health = useHealth();
+  const tid = useTid();
   const tender = useTender();
   const findings = useFindings();
-  const load = useLoadDemo();
-  const toast = useToast();
+  const location = useLocation();
 
   const openSignals = findings.data?.filter((f) => f.category === "INVESTIGATION_SIGNAL" && ["HIGH", "MEDIUM"].includes(f.level)).length;
-  const online = health.isSuccess;
+  // Every page except the tender list works on a selected tender.
+  const needsTender = location.pathname !== "/" && !tid;
 
-  const reload = () =>
-    load.mutate(undefined, {
-      onSuccess: (r) =>
-        toast(
-          <span>
-            Demo tender <b>{r.tender_id}</b> loaded and analysed in {Math.round(r.analysis?.duration_ms ?? 0)} ms
-          </span>,
-        ),
-      onError: (error) => toast(<span>Could not load the demo tender: {error instanceof Error ? error.message : String(error)}</span>),
-    });
+  const link = (item: NavItem) => (
+    <NavLink key={item.to} to={item.to} end={item.to === "/"} className="nav__link">
+      {item.icon}
+      <span>{item.label}</span>
+      {item.to === "/findings" && openSignals ? (
+        <span className="nav__count nav__count--alert">{openSignals}</span>
+      ) : item.to === "/findings" && findings.data ? (
+        <span className="nav__count">{findings.data.length}</span>
+      ) : (
+        <span />
+      )}
+    </NavLink>
+  );
 
   return (
     <div className="shell">
@@ -62,24 +101,14 @@ export function Layout() {
           <BrandMark />
           <div>
             <div className="brand__name">TenderShield</div>
-            <div className="brand__tag">Evidence intelligence</div>
+            <div className="brand__tag">Procurement restructuring</div>
           </div>
         </div>
         <nav className="nav">
-          <div className="nav__label">Investigation workflow</div>
-          {NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.to === "/"} className="nav__link">
-              {item.icon}
-              <span>{item.label}</span>
-              {item.to === "/findings" && openSignals ? (
-                <span className="nav__count nav__count--alert">{openSignals}</span>
-              ) : item.to === "/findings" && findings.data ? (
-                <span className="nav__count">{findings.data.length}</span>
-              ) : (
-                <span />
-              )}
-            </NavLink>
-          ))}
+          <div className="nav__label">Restructuring workflow</div>
+          {PRIMARY.map(link)}
+          <div className="nav__label" style={{ marginTop: 14 }}>Bid assurance</div>
+          {ASSURANCE.map(link)}
         </nav>
       </aside>
 
@@ -87,31 +116,13 @@ export function Layout() {
         <header className="topbar">
           <div className="topbar__tender">
             {tender.data ? (
-              <>
-                <Badge tone="brand">{tender.data.tender_id}</Badge>
-                <span className="topbar__title" title={tender.data.title}>
-                  {shortTitle(tender.data.title)}
-                </span>
-                <Badge tone="outline">{tender.data.status.replace(/_/g, " ").toLowerCase()}</Badge>
-              </>
-            ) : (
-              <span className="muted">No tender loaded</span>
-            )}
+              <Badge tone="outline">{tender.data.status.replace(/_/g, " ").toLowerCase()}</Badge>
+            ) : null}
+            <TenderPicker />
           </div>
           <div className="topbar__spacer" />
-          <Button
-            variant={tender.data ? undefined : "brand"}
-            icon={<RefreshCw size={15} />}
-            loading={load.isPending}
-            onClick={reload}
-            disabled={!online}
-          >
-            {tender.data ? "Reload demo" : "Load demonstration tender"}
-          </Button>
         </header>
-        <main className="content">
-          <Outlet />
-        </main>
+        <main className="content">{needsTender ? <NotLoaded what="tender" /> : <Outlet />}</main>
       </div>
     </div>
   );

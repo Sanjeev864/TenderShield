@@ -22,7 +22,7 @@ import { commitEvidenceToBlockchain, connectWallet, contractConfigured, getEvide
 import { ErrorCard, NotLoaded } from "../components/NotLoaded";
 import { Badge, Button, Callout, Card, LoadingBlock, PageHead, useToast } from "../components/ui";
 import { fmtDateTime, humanize, shortHash } from "../lib/format";
-import { isNotLoaded, TID, useAuditLog, useSnapshots, useTender } from "../lib/hooks";
+import { isNotLoaded, useHealth, useTid, useAuditLog, useSnapshots, useTender } from "../lib/hooks";
 
 function Seal({ result, snapshot, chain, chainChecked }: { result: Verification | null; snapshot: Snapshot | null; chain: EvidenceRecord | null; chainChecked: boolean }) {
   const chainMatch = !!result && !!chain && chain.caseId === snapshot?.snapshot_id && chain.tenderId === snapshot?.tender_id && chain.evidenceHash.toLowerCase() === `0x${result.current_hash}`.toLowerCase() && chain.evidenceHash.toLowerCase() === `0x${snapshot?.bundle_hash}`.toLowerCase() && (!snapshot?.chain_payload || chain.auditHeadHash.toLowerCase() === `0x${snapshot.chain_payload.audit_head_hash}`.toLowerCase());
@@ -81,6 +81,8 @@ function Seal({ result, snapshot, chain, chainChecked }: { result: Verification 
 }
 
 export function Integrity() {
+  const TID = useTid();
+  const health = useHealth();
   const tender = useTender();
   const snapshots = useSnapshots();
   const audit = useAuditLog();
@@ -245,6 +247,7 @@ export function Integrity() {
           {verify.isError && <Callout tone="danger">Verification failed: {String(verify.error)}</Callout>}
           {chainError && <Callout tone="danger">MST Testnet read failed: {chainError}</Callout>}
 
+          {health.data?.demo_enabled && (
           <Card title="Tamper demonstration" icon={<FileWarning size={15} />}>
             <div className="stack">
               <p className="dim" style={{ fontSize: 13 }}>
@@ -270,6 +273,7 @@ export function Integrity() {
               </Callout>
             </div>
           </Card>
+          )}
 
           {current?.component_hashes && (
             <Card title="Evidence bundle" icon={<Stamp size={15} />} flush>

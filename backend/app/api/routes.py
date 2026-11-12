@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from .. import pipeline
@@ -73,7 +73,7 @@ def _require_finding(conn, finding_id: str) -> dict:
 def health() -> dict:
     s = get_settings()
     return {"status": "ok", "extractor": s.extractor, "llm_available": llm_available(), "llm_model": s.llm_model,
-            "embedding_backend": s.embedding_backend, "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+            "embedding_backend": s.embedding_backend, "demo_enabled": s.enable_demo, "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
 
 @router.get("/meta/metrics", tags=["system"])
@@ -87,8 +87,14 @@ def scoring() -> dict:
 
 
 # --- Demo mode -------------------------------------------------------------------
+# Fabricated dataset for tests and local rehearsal only; disabled unless TS_ENABLE_DEMO=1.
 
-@router.post("/demo/load", tags=["demo"])
+def _demo_enabled() -> None:
+    if not get_settings().enable_demo:
+        raise HTTPException(404, "Demo dataset is disabled (set TS_ENABLE_DEMO=1 for local rehearsal)")
+
+
+@router.post("/demo/load", tags=["demo"], dependencies=[Depends(_demo_enabled)])
 def demo_load(analyze: bool = Query(False, description="Also run the full analysis pipeline")) -> dict:
     summary = load_demo()
     summary.pop("documents")
@@ -97,7 +103,7 @@ def demo_load(analyze: bool = Query(False, description="Also run the full analys
     return summary
 
 
-@router.post("/demo/tamper", tags=["demo"])
+@router.post("/demo/tamper", tags=["demo"], dependencies=[Depends(_demo_enabled)])
 def demo_tamper(body: TamperRequest) -> dict:
     with session() as conn:
         try:
@@ -106,7 +112,7 @@ def demo_tamper(body: TamperRequest) -> dict:
             raise HTTPException(404, str(exc)) from exc
 
 
-@router.post("/demo/restore", tags=["demo"])
+@router.post("/demo/restore", tags=["demo"], dependencies=[Depends(_demo_enabled)])
 def demo_restore() -> dict:
     with session() as conn:
         return restore_documents(conn, DEMO_TENDER_ID)

@@ -5,7 +5,6 @@ import type {
   ComplianceMatrix,
   CounterfactualResult,
   Decision,
-  DemoLoad,
   Finding,
   FindingSummary,
   GraphView,
@@ -18,9 +17,9 @@ import type {
   Snapshot,
   Tender,
   Verification,
+  RestructuringPlan,
 } from "./types";
 
-export const DEMO_TENDER = "TN-2026-014";
 const BASE = import.meta.env.VITE_API_BASE ?? "";
 
 export class ApiError extends Error {
@@ -33,9 +32,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // FormData bodies set their own multipart boundary; everything else is JSON.
+  const json = !(init?.body instanceof FormData);
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: { ...(json ? { "Content-Type": "application/json" } : {}), ...(init?.headers ?? {}) },
   });
   if (!res.ok) {
     let detail = res.statusText;
@@ -50,12 +51,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface UploadTenderInput {
+  file: File;
+  title?: string;
+  department?: string;
+  bid_deadline?: string;
+}
+
+const form = (fields: Record<string, string | Blob | undefined>) => {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== "") fd.append(k, v);
+  return fd;
+};
+
+const upload = <T>(path: string, body: FormData, method = "POST") => request<T>(path, { method, body });
+
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
   health: () => request<Health>("/api/health"),
-  loadDemo: () => post<DemoLoad>("/api/demo/load?analyze=true"),
+  tenders: () => request<Tender[]>("/api/tenders"),
+  uploadTender: ({ file, ...meta }: UploadTenderInput) =>
+    upload<{ tender_id: string; title: string }>("/api/uploads/tender", form({ file, ...meta })),
+  uploadTenderDocument: (tid: string, file: File, kind: "tender_annex" | "scope" | "specification") =>
+    upload<{ document_id: string }>(`/api/tenders/${tid}/documents`, form({ file, kind })),
+  uploadBoq: (tid: string, file: File) =>
+    upload<{ rows: number; total_amount_inr_cr: number | null }>(`/api/tenders/${tid}/boq`, form({ file })),
+  uploadBiddersCsv: (tid: string, file: File) => upload<{ added: number }>(`/api/uploads/${tid}/bidders.csv`, form({ file })),
+  restructure: (tid: string, weights: Record<string, number> = {}) =>
+    post<RestructuringPlan>(`/api/tenders/${tid}/restructure`, { weights }),
+  restructuring: (tid: string) => request<RestructuringPlan>(`/api/tenders/${tid}/restructuring`),
+  restructuringDossier: (tid: string) => post<{ url: string }>(`/api/tenders/${tid}/restructuring/dossier`),
+  restructuringDossierUrl: (tid: string) => `${BASE}/api/tenders/${tid}/restructuring/dossier.pdf`,
+  marketStatus: () => request<{ real_data_loaded: boolean; sources: { source_id: string }[]; counts: Record<string, number>; hint?: string }>("/api/market/status"),
   tamper: (documentId?: string) => post<{ document_id: string; filename: string; change: string }>(
     "/api/demo/tamper",
     { document_id: documentId ?? null },

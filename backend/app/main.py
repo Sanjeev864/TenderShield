@@ -24,25 +24,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger(__name__)
 
 
-def _autoload_demo() -> None:
-    """Seed the demo tender when the database is empty (hosts with ephemeral disks start blank)."""
-    from .db import fetch_one, session
-    from .demo.generator import load_demo
-    from .demo.scenario import DEMO_TENDER_ID
-    from .pipeline import run_analysis
-
-    with session() as conn:
-        if fetch_one(conn, "SELECT tender_id FROM tenders WHERE tender_id = ?", (DEMO_TENDER_ID,)):
-            return
-    log.info("Database empty: loading demo tender %s", DEMO_TENDER_ID)
-    load_demo()
-    run_analysis(DEMO_TENDER_ID)
-
-
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
-    if os.environ.get("TS_AUTOLOAD_DEMO", "").lower() in {"1", "true", "yes"}:
-        _autoload_demo()
     yield
 
 

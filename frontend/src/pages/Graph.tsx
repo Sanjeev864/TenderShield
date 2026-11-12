@@ -8,7 +8,7 @@ import type { GraphNode, GraphView, RelationshipPath } from "../api/types";
 import { ErrorCard, NotLoaded } from "../components/NotLoaded";
 import { Badge, Button, Card, LevelBadge, LoadingBlock, PageHead, Switch } from "../components/ui";
 import { humanize } from "../lib/format";
-import { isNotLoaded, TID, useFindings, useGraph, useTender } from "../lib/hooks";
+import { isNotLoaded, useTid, useFindings, useGraph, useTender } from "../lib/hooks";
 
 // Tokens are color-mix() expressions, which Cytoscape cannot parse; resolve them to rgb() via a probe element.
 const cssVar = (name: string) => {
@@ -143,6 +143,7 @@ function style(): cytoscape.StylesheetJson {
 }
 
 export function GraphPage() {
+  const TID = useTid();
   const graph = useGraph();
   const tender = useTender();
   const findings = useFindings();

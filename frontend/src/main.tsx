@@ -18,7 +18,9 @@ import { Compliance } from "./pages/Compliance";
 import { FindingDetail } from "./pages/FindingDetail";
 import { Findings } from "./pages/Findings";
 import { Intelligence } from "./pages/Intelligence";
-import { Overview } from "./pages/Overview";
+import { Landing, Overview } from "./pages/Overview";
+import { Restructuring } from "./pages/Restructuring";
+import { TenderProvider } from "./lib/tender";
 
 // Cytoscape is the heaviest dependency; load it only when the graph page opens.
 const GraphPage = lazy(() => import("./pages/Graph").then((m) => ({ default: m.GraphPage })));
@@ -36,7 +38,9 @@ const router = createBrowserRouter([
         // Pathless wrapper so a page error renders inside the layout instead of replacing it.
         errorElement: <RouteError />,
         children: [
-          { path: "/", element: <Overview /> },
+          { path: "/", element: <Landing /> },
+          { path: "/restructuring", element: <Restructuring /> },
+          { path: "/assurance", element: <Overview /> },
           { path: "/rulebook", element: <Navigate to="/compliance" replace /> },
           { path: "/compliance", element: <Compliance /> },
           {
@@ -68,9 +72,11 @@ const router = createBrowserRouter([
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <RouterProvider router={router} />
-      </ToastProvider>
+      <TenderProvider>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
+      </TenderProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
