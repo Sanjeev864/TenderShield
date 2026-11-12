@@ -2013,3 +2013,13 @@ a.source-chip:hover {
   font-size: 13px;
   color: var(--ink-3);
 }
+
+/* Wide data tables scroll inside their card instead of widening the page. */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.table-scroll .table td:first-child {
+  min-width: 220px;
+}

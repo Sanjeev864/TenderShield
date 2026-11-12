@@ -91,7 +91,7 @@ function ScenarioTable({ plan }: { plan: RestructuringPlan }) {
   const metricKeys = Array.from(new Set(rows.flatMap(([, s]) => Object.keys(s.metrics))));
   return (
     <Card title="Scenario comparison" icon={<Scale size={15} />} flush>
-      <table className="table">
+      <div className="table-scroll"><table className="table">
         <thead>
           <tr>
             <th>Scenario</th>
@@ -116,7 +116,7 @@ function ScenarioTable({ plan }: { plan: RestructuringPlan }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
       <div className="card__body dim" style={{ fontSize: 12.5 }}>
         Robustness: the recommended structure stays best in {pct(plan.structures.sensitivity.recommended_stays_best)} of{" "}
         {plan.structures.sensitivity.draws} weight perturbations ({plan.structures.sensitivity.perturbation}).
@@ -160,7 +160,7 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
       ))}
 
       <Card title="Recommended packages" icon={<Boxes size={15} />} flush>
-        <table className="table">
+        <div className="table-scroll"><table className="table">
           <thead>
             <tr>
               <th>Package</th>
@@ -190,7 +190,7 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </Card>
 
       <div className="grid grid--main-side">
@@ -205,7 +205,7 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
               ))}
             </div>
           )}
-          <table className="table">
+          <div className="table-scroll"><table className="table">
             <thead>
               <tr><th>Between</th><th>Type</th><th style={{ textAlign: "right" }}>Strength</th></tr>
             </thead>
@@ -220,7 +220,7 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </Card>
 
         <Card title="Supplier relationships requiring review" icon={<Link2 size={15} />}>
@@ -248,7 +248,7 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
       <ScenarioTable plan={plan} />
 
       <Card title="Capability components" icon={<TableProperties size={15} />} flush>
-        <table className="table">
+        <div className="table-scroll"><table className="table">
           <thead>
             <tr><th>Component</th><th className="num">Items</th><th className="num">Value</th><th>Value basis</th><th className="num">Confidence</th></tr>
           </thead>
@@ -263,7 +263,7 @@ function PlanView({ plan, tid }: { plan: RestructuringPlan; tid: string }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </Card>
 
       <div className="row">
