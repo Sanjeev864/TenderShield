@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 Role = Literal["viewer", "officer", "admin"]
 RANK = {"viewer": 0, "officer": 1, "admin": 2}
 ALGORITHM = "HS256"
-PUBLIC_PATHS = {"/api/health", "/api/auth/login"}
+PUBLIC_PATHS = {"/api/health", "/api/ready", "/api/auth/login"}
 
 _current_user: ContextVar[dict | None] = ContextVar("current_user", default=None)
 

@@ -76,6 +76,17 @@ def health() -> dict:
             "embedding_backend": s.embedding_backend, "demo_enabled": s.enable_demo, "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
 
+@router.get("/ready", tags=["system"])
+def ready() -> dict:
+    """Readiness probe: the database answers. /api/health is liveness only."""
+    try:
+        with session() as conn:
+            conn.execute("SELECT 1").fetchone()
+    except Exception as exc:  # noqa: BLE001 - report any database failure as not ready
+        raise HTTPException(503, f"Database unavailable: {type(exc).__name__}") from exc
+    return {"status": "ready", "database": "postgresql" if get_settings().is_postgres else "sqlite"}
+
+
 @router.get("/meta/metrics", tags=["system"])
 def metrics() -> dict:
     return {"metrics": METRICS}

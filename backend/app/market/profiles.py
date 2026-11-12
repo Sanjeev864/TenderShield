@@ -47,7 +47,7 @@ def rebuild_profiles(conn: sqlite3.Connection) -> dict:
             a["cap_values"][r["capability"]] = max(a["cap_values"][r["capability"]], r["amount_inr_cr"])
         if r["signed_on"]:
             a["dates"].append(r["signed_on"])
-    for r in conn.execute("SELECT supplier_key, supplier_name, source_id, COUNT(*) n FROM market_bids"
+    for r in conn.execute("SELECT supplier_key, MIN(supplier_name) supplier_name, MIN(source_id) source_id, COUNT(*) n FROM market_bids"
                           " GROUP BY supplier_key"):
         a = agg[r["supplier_key"]]
         a["bids"] = r["n"]

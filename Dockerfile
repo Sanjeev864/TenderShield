@@ -18,15 +18,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     TS_DATA_DIR=/data \
     TS_STATIC_DIR=/app/static \
+    TS_ENV=production \
     PORT=8000
 WORKDIR /app
 COPY backend/requirements.txt ./
 RUN pip install -r requirements.txt
 COPY backend/app ./app
+COPY backend/alembic.ini ./
+COPY backend/migrations ./migrations
 COPY backend/scripts ./scripts
 COPY backend/models ./models
 COPY --from=web /web/dist ./static
 RUN useradd --create-home --uid 1000 app && mkdir -p /data && chown app /data
 USER app
 EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
+  CMD python -c "import os, urllib.request as u; u.urlopen('http://127.0.0.1:%s/api/ready' % os.environ.get('PORT', '8000'))"
 CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

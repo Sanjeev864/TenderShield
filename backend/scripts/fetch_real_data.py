@@ -23,6 +23,8 @@ import argparse
 import hashlib
 import json
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -55,7 +57,29 @@ FALLBACKS = {
 }
 
 
+RETRIES = 4
+TRANSIENT_HTTP = {408, 425, 429, 500, 502, 503, 504}
+
+
 def download(url: str, dest: Path) -> dict:
+    """Download with exponential backoff on network errors and transient HTTP statuses."""
+    for attempt in range(1, RETRIES + 1):
+        try:
+            return _download_once(url, dest)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in TRANSIENT_HTTP or attempt == RETRIES:
+                raise
+            wait = int(exc.headers.get("Retry-After", 0) or 0) or 2 ** attempt
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            if attempt == RETRIES:
+                raise
+            wait = 2 ** attempt
+        print(f"  retry {attempt}/{RETRIES - 1} in {wait}s: {url}", file=sys.stderr)
+        time.sleep(wait)
+    raise AssertionError("unreachable")
+
+
+def _download_once(url: str, dest: Path) -> dict:
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": "TenderShield-Nexus/1.0 (research; open data)"})
     digest = hashlib.sha256()

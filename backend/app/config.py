@@ -63,6 +63,22 @@ class Settings:
         )
     )
 
+    # PostgreSQL in production, e.g. postgresql://user:pass@host:5432/tendershield.
+    # Unset means a SQLite file in TS_DATA_DIR (local development and tests).
+    database_url: str = field(default_factory=lambda: _env("TS_DATABASE_URL", ""))
+
+    @property
+    def is_postgres(self) -> bool:
+        return self.database_url.startswith(("postgres://", "postgresql://", "postgresql+psycopg://"))
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        if self.is_postgres:
+            return "postgresql+psycopg://" + self.database_url.split("://", 1)[1]
+        if self.database_url:
+            return self.database_url
+        return f"sqlite:///{self.db_path}"
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "tendershield.db"

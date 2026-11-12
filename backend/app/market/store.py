@@ -1,9 +1,12 @@
 """Market intelligence store: real historical awards, bids and supplier profiles.
 
-Kept in its own SQLite file (``market.db``) so resetting the demo tender never wipes the real
-datasets. Every row records the dataset it came from (``source_id``), and every dataset records
-its origin URL, licence, file SHA-256 and import time, so any supplier match can be traced back to
-the published record that supports it.
+On PostgreSQL the market tables live in the main database (created by the Alembic migration;
+``db.reset_db`` never drops them). On SQLite they are kept in their own file (``market.db``,
+TS_MARKET_DB) so the derived store can be rebuilt or shipped independently.
+
+Every row records the dataset it came from (``source_id``), and every dataset records its origin
+URL, licence, file SHA-256 and import time, so any supplier match can be traced back to the
+published record that supports it.
 """
 
 from __future__ import annotations
@@ -16,85 +19,9 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 from ..config import get_settings
+from ..schema import MARKET_TABLES
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS market_sources (
-    source_id TEXT PRIMARY KEY,
-    adapter TEXT NOT NULL,
-    title TEXT NOT NULL,
-    origin_url TEXT,
-    licence TEXT,
-    country_scope TEXT,
-    file_sha256 TEXT,
-    rows_awards INTEGER NOT NULL DEFAULT 0,
-    rows_bids INTEGER NOT NULL DEFAULT 0,
-    imported_at TEXT NOT NULL,
-    notes TEXT
-);
-CREATE TABLE IF NOT EXISTS market_awards (
-    award_id TEXT PRIMARY KEY,
-    source_id TEXT NOT NULL,
-    tender_ref TEXT,
-    lot_ref TEXT,
-    project_id TEXT,
-    buyer TEXT,
-    title TEXT,
-    description TEXT,
-    cpv TEXT,
-    capability TEXT NOT NULL,
-    capability_basis TEXT NOT NULL,
-    category TEXT,
-    method TEXT,
-    country TEXT,
-    region TEXT,
-    signed_on TEXT,
-    supplier_key TEXT NOT NULL,
-    supplier_name TEXT NOT NULL,
-    supplier_country TEXT,
-    amount REAL,
-    currency TEXT,
-    amount_inr_cr REAL,
-    n_bidders INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_awards_supplier ON market_awards(supplier_key);
-CREATE INDEX IF NOT EXISTS idx_awards_capability ON market_awards(capability);
-CREATE INDEX IF NOT EXISTS idx_awards_source ON market_awards(source_id);
-CREATE TABLE IF NOT EXISTS market_bids (
-    bid_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_id TEXT NOT NULL,
-    tender_ref TEXT NOT NULL,
-    lot_ref TEXT,
-    supplier_key TEXT NOT NULL,
-    supplier_name TEXT NOT NULL,
-    amount REAL,
-    currency TEXT,
-    won INTEGER,
-    rank INTEGER,
-    bid_date TEXT,
-    capability TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_bids_tender ON market_bids(tender_ref, lot_ref);
-CREATE INDEX IF NOT EXISTS idx_bids_supplier ON market_bids(supplier_key);
-CREATE TABLE IF NOT EXISTS market_suppliers (
-    supplier_key TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    country TEXT,
-    sources TEXT NOT NULL,
-    n_awards INTEGER NOT NULL,
-    total_inr_cr REAL,
-    max_inr_cr REAL,
-    median_inr_cr REAL,
-    first_award TEXT,
-    last_award TEXT,
-    capabilities TEXT NOT NULL,
-    capability_values TEXT NOT NULL,
-    n_bids INTEGER NOT NULL DEFAULT 0,
-    msme_status TEXT NOT NULL DEFAULT 'UNKNOWN',
-    msme_evidence TEXT,
-    identifiers TEXT NOT NULL DEFAULT '{}'
-);
-CREATE INDEX IF NOT EXISTS idx_suppliers_name ON market_suppliers(name);
-"""
+_created: set[str] = set()
 
 JSON_COLUMNS = {"sources", "capabilities", "capability_values", "identifiers", "msme_evidence"}
 
@@ -104,13 +31,34 @@ def market_db_path() -> Path:
     return Path(override) if override else get_settings().data_dir / "market.db"
 
 
+def _use_main_db(path: Path | None) -> bool:
+    return path is None and get_settings().is_postgres
+
+
+def market_available() -> bool:
+    """Whether a market store exists (it may still hold no awards)."""
+    return get_settings().is_postgres or market_db_path().exists()
+
+
 def connect(path: Path | None = None) -> sqlite3.Connection:
+    if _use_main_db(path):
+        from ..db import connect as main_connect
+        from ..db import init_db
+
+        init_db()
+        return main_connect()
     path = path or market_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    if str(path) not in _created:
+        from sqlalchemy import create_engine
+
+        engine = create_engine(f"sqlite:///{path}")
+        MARKET_TABLES[0].metadata.create_all(engine, tables=MARKET_TABLES)
+        engine.dispose()
+        _created.add(str(path))
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.executescript(SCHEMA)
     return conn
 
 
@@ -120,11 +68,14 @@ def market_session(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     try:
         yield conn
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
-def row(r: sqlite3.Row | None) -> dict | None:
+def row(r) -> dict | None:
     if r is None:
         return None
     out = dict(r)
@@ -134,7 +85,7 @@ def row(r: sqlite3.Row | None) -> dict | None:
     return out
 
 
-def rows(cursor: Iterable[sqlite3.Row]) -> list[dict]:
+def rows(cursor: Iterable) -> list[dict]:
     return [row(r) for r in cursor]  # type: ignore[misc]
 
 

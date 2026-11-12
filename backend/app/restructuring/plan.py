@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 
 from ..db import fetch_all, fetch_one, get_artifact, put_artifact
 from ..market.store import connect as market_connect
-from ..market.store import market_db_path
+from ..market.store import market_available
 from ..market.store import status as market_status
 from .classifier import model_card as classifier_card
 from .competition import model_card as competition_card
@@ -72,7 +72,7 @@ def run_restructuring(conn: sqlite3.Connection, tender_id: str, *, weights: dict
     dep = build_dependency_graph(components, pages)
 
     countries = countries if countries is not None else _default_countries()
-    market_conn = market_connect() if market_db_path().exists() else None
+    market_conn = market_connect() if market_available() else None
     try:
         idx = MarketIndex.load(market_conn, countries)
         market = market_status(market_conn) if market_conn else {"real_data_loaded": False, "sources": []}

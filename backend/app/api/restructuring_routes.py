@@ -18,7 +18,7 @@ from ..evidence import audit
 from ..ingestion.pdf_text import register_document
 from ..market import profiles, sources
 from ..market.fx import rates
-from ..market.store import market_db_path, market_session, rows, status
+from ..market.store import market_available, market_session, rows, status
 from ..restructuring import classifier, competition
 from ..restructuring.components import parse_boq
 from ..restructuring.dossier import render_dossier
@@ -65,7 +65,7 @@ def models() -> dict:
 
 @router.get("/market/status", tags=["market"])
 def market_status() -> dict:
-    if not market_db_path().exists():
+    if not market_available():
         return {"real_data_loaded": False, "sources": [], "counts": {}, "hint": "run scripts/fetch_real_data.py then build_market.py"}
     with market_session() as conn:
         return status(conn)
@@ -74,7 +74,7 @@ def market_status() -> dict:
 @router.get("/market/suppliers", tags=["market"])
 def market_suppliers(q: Optional[str] = None, capability: Optional[str] = None, country: Optional[str] = None,
                      sme_only: bool = False, limit: int = Query(25, le=200)) -> list[dict]:
-    if not market_db_path().exists():
+    if not market_available():
         return []
     sql, params = "SELECT * FROM market_suppliers WHERE 1=1", []
     if q:
