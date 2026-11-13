@@ -67,6 +67,10 @@ def run_restructuring(conn: sqlite3.Connection, tender_id: str, *, weights: dict
         stated_estimate_cr(pages)
     overrides = value_overrides if value_overrides is not None else (get_artifact(conn, tender_id, "component_values") or {})
     components = build_components(items, estimate, overrides)
+    if estimate is None and components and all(c["value_basis"] in ("boq", "document") for c in components):
+        # No overall estimate stated, but every component carries its own stated cost: report their sum.
+        estimate = round(sum(c["value_inr_cr"] for c in components), 4)
+        estimate_src = {"basis": "sum of item costs stated in the tender documents / BOQ"}
     if not components:
         raise ValueError("No scope items could be identified in the tender documents. Upload the Scope of Work / "
                          "Technical Specifications or a BOQ (CSV/XLSX).")

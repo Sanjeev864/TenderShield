@@ -1,6 +1,6 @@
 {
   "model": "competition_model",
-  "trained_at": "2026-11-12T09:49:51+00:00",
+  "trained_at": "2026-11-13T04:35:51+00:00",
   "algorithm": "HistGradientBoostingRegressor (Poisson loss) on log10(value ₹ Cr) + capability one-hot",
   "training_data": [
     {

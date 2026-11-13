@@ -3,7 +3,7 @@ import html, json, os, re, sys, textwrap
 from pathlib import Path
 
 SCR = Path(sys.argv[1]); REPO = Path(sys.argv[2])
-os.environ.update(TS_DATA_DIR=str(SCR / "real/run2"), TS_MARKET_DB=str(SCR / "real/data/market.db"),
+os.environ.update(TS_DATA_DIR=str(SCR / "real/run3"), TS_MARKET_DB=str(SCR / "real/market.db"),
                   TS_MARKET_COUNTRIES="India", TS_EXTRACTOR="pattern")
 sys.path.insert(0, str(REPO / "backend"))
 from fastapi.testclient import TestClient  # noqa: E402
@@ -15,7 +15,7 @@ from app.db import fetch_one, init_db, session  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 notices = {x["id"]: x for x in json.loads((REPO / "data/real/raw/worldbank/procurement_notices_india.json").read_text())["procnotices"]}
-OUT = SCR / "real/results2"
+OUT = SCR / "real/results3"
 
 def notice_text(x):
     t = re.sub(r"<(br|p|tr|li|div)[^>]*>", "\n", x["notice_text"], flags=re.I)

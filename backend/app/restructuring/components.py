@@ -29,7 +29,8 @@ WORK_VERBS = re.compile(
     r"operat(?:e|ion)|dismantl(?:e|ing)|excavat(?:e|ion|ing)|implement(?:ation|ing)?|integrat(?:e|ion|ing)|"
     r"deploy(?:ment|ing)?|upgrad(?:e|ation)|augment(?:ation)?|repair(?:ing|s)?|painting|replacement|"
     r"retrofit(?:ting)?|survey(?:ing)?|calibrat(?:e|ion)|establish(?:ment|ing)?|improvement|marking|"
-    r"setting up|creation|provision|procurement of|strengthening|rehabilitation|restor(?:e|ation|ing)|widening|modernisation|modernization)\b", re.I)
+    r"setting up|creation|provision|procurement of|strengthening|rehabilitation|restor(?:e|ation|ing)|"
+    r"renovat(?:e|ion|ing)|turfing|protection works?|widening|modernisation|modernization)\b", re.I)
 SCOPE_SECTION = re.compile(r"\b(scope of (?:work|supply|services)|schedule of (?:quantities|requirements)|bill of quantities|"
                            r"\bboq\b|technical specifications?|work components?|description of works?|project components?|"
                            r"terms of reference)\b", re.I)
@@ -44,7 +45,9 @@ BOILERPLATE = re.compile(
     r"received financing|applied for financing|financing from|loan no|credit no|grant no|procurement regulations|"
     r"bidding documents?|construction period|completion period|period of completion|e-?mail|mobile no|telephone|"
     r"tel\.? no|ifsc|account no|name of bank|evaluat\w*|weightings?|registration|user id|password|website|www\.|"
-    r"https?://|implementation unit|pre-?bid|bid submission|opening of|last date|conflict of interest)\b", re.I)
+    r"https?://|implementation unit|pre-?bid|bid submission|opening of|last date|conflict of interest|"
+    r"other details|liable|employer|(?:single|two)[- ]envelope|completion certificate|site not ready|"
+    r"rfq document|rfb document|addend(?:um|a)|department(?=\s*[:;])|inviting authority|mode of tendering)\b", re.I)
 # Labelled scope fields ("Name of work: ...", "Contract title: ...") and quoted work names in invitations.
 SCOPE_FIELD = re.compile(r"^\s*(?:name of (?:the )?works?|contract title|title of (?:the )?(?:work|contract)|detail of works?|"
                          r"description of (?:the )?works?|scope of works?)\s*[:\-–]\s*(?P<v>.{12,700})$", re.I)
@@ -53,6 +56,11 @@ QUOTED_WORK = re.compile(r"[\"“]\s*(?P<v>[^\"”]{15,300}?)\s*[\"”]")
 TABLE_HEADER = re.compile(r"^\s*(?:description of (?:goods|works?|items?|services)|item description|name of (?:the )?works?|"
                           r"detail of works?|line item|particulars of (?:work|item)s?)\b", re.I)
 ROW_NO = re.compile(r"^\s*(\d{1,3})\.?\s*$")
+# Unnumbered work lists: "Details of Works" followed by one work per line, each optionally followed by
+# "Estimated Cost: 11,51,66,390.81" (plain rupees, Indian digit grouping, often without "Rs.").
+WORK_LIST_HEADER = re.compile(r"^\s*(?:details? of (?:the )?works?|list of works?|works? details|description of works?)\s*:?\s*$", re.I)
+COST_LINE = re.compile(r"^\s*(?:estimated (?:cost|value)|cost|amount|value)\b[^:\d]*[:\-–]?\s*(?:rs\.?|inr|₹)?\s*"
+                       r"(?P<num>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>crores?|cr\.?|lakhs?|lacs?)?", re.I)
 NUMBERED_PARA = re.compile(r"^\s*\d{1,2}\.\s+\S.{40,}")
 PAGE_NOISE = re.compile(r"^(page \d+( of \d+)?|\d+|-\s*\d+\s*-)$", re.I)
 
@@ -156,6 +164,54 @@ def line_item_rows(pages: list[tuple[str, int, str]]) -> list[dict]:
     return rows
 
 
+def _cost_cr(line: str) -> float | None:
+    m = COST_LINE.match(line)
+    if not m:
+        return None
+    unit = (m.group("unit") or "").lower()
+    try:
+        value = float(m.group("num").replace(",", ""))
+    except ValueError:
+        return None
+    if unit.startswith("cr"):
+        return value
+    if unit.startswith(("lakh", "lac")):
+        return value / 100
+    return value / 1e7  # plain rupees
+
+
+def listed_work_rows(pages: list[tuple[str, int, str]]) -> list[dict]:
+    """Works listed one per line under "Details of Works", with the cost line that follows each."""
+    rows: list[dict] = []
+    for doc, page, text in pages:
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        in_list, skip_to = False, -1
+        for i, line in enumerate(lines):
+            if i <= skip_to:
+                continue
+            if WORK_LIST_HEADER.match(line):
+                in_list = True
+                continue
+            if not in_list or COST_LINE.match(line):
+                continue
+            # The list ends at the next short heading ("Tender Schedule") or a key: value field.
+            if (len(line.split()) <= 4 and not line.endswith(".")) or re.match(r"^[A-Za-z /&()]{3,40}:\s", line):
+                in_list = False
+                continue
+            # A work wrapped over several PDF lines continues until a line ends with "." or a cost line follows.
+            j = i
+            while not lines[j].rstrip().endswith(".") and j + 1 < len(lines) and not COST_LINE.match(lines[j + 1]) \
+                    and not WORK_LIST_HEADER.match(lines[j + 1]) and j - i < 4:
+                j += 1
+            work = " ".join(lines[i:j + 1])
+            skip_to = j
+            if not WORK_VERBS.search(work) or BOILERPLATE.search(work):
+                continue
+            nxt = lines[j + 1] if j + 1 < len(lines) else ""
+            rows.append({"doc": doc, "page": page, "text": _clean(work), "section": "listed works", "amount_inr_cr": _cost_cr(nxt)})
+    return rows
+
+
 def scope_field_blocks(pages: list[tuple[str, int, str]]) -> list[dict]:
     """Explicitly labelled or quoted work names: "Name of work: ...", 'invited for " Restoration of ... "'."""
     out = []
@@ -177,7 +233,8 @@ def items_from_documents(pages: list[tuple[str, int, str]], min_conf: float = 0.
     1. line-item table rows, 2. labelled / quoted work names, 3. scope-like paragraphs,
     4. the tender title, used only when the documents yield nothing else.
     """
-    tagged = [(b, "line_item") for b in line_item_rows(pages)]
+    tagged = [(b, "listed_work") for b in listed_work_rows(pages)]
+    tagged += [(b, "line_item") for b in line_item_rows(pages)]
     tagged += [(b, "scope_field") for b in scope_field_blocks(pages)]
     tagged += [(b, "document") for b in segment_blocks(pages) if is_scope_text(b["text"], b.get("section", ""))]
     if not tagged and title and WORK_VERBS.search(title):
@@ -197,7 +254,8 @@ def items_from_documents(pages: list[tuple[str, int, str]], min_conf: float = 0.
         item = {"text": b["text"][:600], "document_id": b["doc"], "page": b["page"], "section": b.get("section") or None,
                 "capability": cap,
                 "confidence": round(conf, 3), "alternatives": dist, "keywords": sorted({k for v in hits.values() for k in v}),
-                "amount_inr_cr": None if ESTIMATE.search(b["text"]) else parse_money_cr(b["text"]), "source": b["source"]}
+                "amount_inr_cr": b.get("amount_inr_cr") or (None if ESTIMATE.search(b["text"]) else parse_money_cr(b["text"])),
+                "source": b["source"]}
         # Table rows, labelled work names and the title are explicit scope: keep them even at low
         # confidence (flagged in data quality). Free-text paragraphs need min_conf.
         explicit = b["source"] != "document"

@@ -35,7 +35,8 @@ CAPABILITIES: tuple[Capability, ...] = (
          "shuttering", "formwork", "road marking", "pedestrian crossing", "junction geometry", "footpath",
          "embankment", "bridge", "retaining wall", "pavement", "kerb", "boundary wall",
          "providing and laying", "cement concrete", "sub-base", "backfilling",
-         "viaduct", "elevated station", "station building", "flyover", "tunnel", "metro corridor", "protection work"),
+         "viaduct", "elevated station", "station building", "flyover", "tunnel", "metro corridor", "protection work",
+         "road", "metalling", "tarring", "pmgsy", "classroom", "playground", "play ground", "channelization", "wall"),
         "works"),
     Capability(
         "electrical", "Electrical systems & power",
@@ -43,7 +44,7 @@ CAPABILITIES: tuple[Capability, ...] = (
         ("electrical", "cable", "switchgear", "transformer", "panel", "lt panel", "ht panel", "earthing", "lighting",
          "luminaire", "substation", "dg set", "diesel generator", "ups", "busbar", "wiring", "conduit", "mcb", "acb",
          "feeder", "power supply", "solar", "inverter", "kv", "sub-station", "transmission line", "gis",
-         "switchyard", "distribution line"),
+         "switchyard", "distribution line", "electrification"),
         "works"),
     Capability(
         "signalling_control", "Signalling, traffic & safety control",
@@ -112,7 +113,8 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         "vehicles_equipment", "Vehicles & heavy equipment",
         ("34", "43", "16"),
-        ("vehicle", "truck", "bus", "tractor", "excavator", "jcb", "loader", "roller", "dumper", "ambulance"),
+        ("vehicle", "truck", "bus", "tractor", "excavator", "jcb", "loader", "roller", "dumper", "ambulance",
+         "tanker", "water tanker", "sucker", "jetting machine", "utility vehicle", "tipper", "compactor"),
         "goods"),
     Capability(
         "medical_lab", "Medical & laboratory equipment",

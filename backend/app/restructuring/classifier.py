@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -33,7 +34,22 @@ CARD_PATH = MODELS_DIR / "capability_classifier.card.json"
 CPV_PATH = REPO_DIR / "data" / "real" / "cpv_2008_codes.csv"
 GOLD_PATH = REPO_DIR / "data" / "annotations" / "capability_gold.csv"
 
-LEXICON_BOOST = 0.25  # added per matching capability (max 2 keyword hits counted), then renormalised
+LEXICON_BOOST = 0.8  # per matching capability (max 2 keyword hits), then renormalised; tuned on the train half of
+# data/annotations/india_wb_notice_lines.csv with a CPV-only model (0.25: 0.717, 0.4: 0.755, 0.8: 0.774, 1.0: 0.736)
+
+
+# Indian tender lines open with procedural lead-ins ("Providing and installation of", "Supply, installation,
+# testing and commissioning of", "C/O") while CPV - the training vocabulary - names the object alone. The model
+# sees the object phrase; the lexicon still reads the full text.
+_LEAD_IN = re.compile(
+    r"^\W*(?:(?:providing|provision|supply(?:ing)?|delivery|install(?:ation|ing)?|testing|commissioning|erection|"
+    r"fabrication|design(?:ing)?|procurement|construction|c/o|laying|jointing|and|&|,|of|for|the|with|"
+    r"including|incl\.?|complete|necessary|required|all)\b[\s,&/]*)+", re.I)
+
+
+def model_text(text: str) -> str:
+    stripped = _LEAD_IN.sub("", text).strip()
+    return stripped if len(stripped) >= 8 else text
 
 
 def load_cpv(path: Path = CPV_PATH) -> tuple[list[str], list[str], list[str]]:
@@ -77,6 +93,7 @@ def train(out_dir: Path = MODELS_DIR, cpv_path: Path = CPV_PATH, gold_path: Path
     from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
     texts, labels, _ = load_cpv(cpv_path)
+    texts = [model_text(t) for t in texts]
     gold_texts, gold_labels = load_gold(gold_path)
 
     # Cross-validated quality on the CPV vocabulary itself.
@@ -96,7 +113,11 @@ def train(out_dir: Path = MODELS_DIR, cpv_path: Path = CPV_PATH, gold_path: Path
                         "accuracy": round(float(np.mean([p == g for p, g in zip(preds, gold_labels)])), 4),
                         "macro_f1": round(f1_score(gold_labels, preds, average="macro"), 4)}
 
-    model = build_pipeline().fit(texts + gold_texts, labels + gold_labels)
+    # Real tender lines are few next to 9,454 CPV phrases; weight them so they shift the decision
+    # boundary for Indian phrasing (TS_GOLD_WEIGHT, default 8).
+    gold_weight = float(os.environ.get("TS_GOLD_WEIGHT", "8"))
+    weights = [1.0] * len(texts) + [gold_weight] * len(gold_texts)
+    model = build_pipeline().fit(texts + [model_text(t) for t in gold_texts], labels + gold_labels, clf__sample_weight=weights)
     out_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, out_dir / MODEL_PATH.name, compress=3)
     card = {
@@ -108,7 +129,7 @@ def train(out_dir: Path = MODELS_DIR, cpv_path: Path = CPV_PATH, gold_path: Path
             "origin": "Commission Regulation (EC) No 213/2008 - official EU procurement vocabulary",
             "rows": len(texts), "labels": "capability from CPV code prefix (taxonomy.py), no manual labels",
         }] + ([{"name": "Annotated tender lines", "path": str(gold_path.relative_to(REPO_DIR)),
-                "rows": len(gold_texts)}] if gold_texts else []),
+                "rows": len(gold_texts), "sample_weight": gold_weight}] if gold_texts else []),
         "class_counts": {k: labels.count(k) for k in CAPABILITY_KEYS},
         "metrics": metrics,
         "transfer_eval_on_annotated_tender_lines": gold_metrics or
@@ -147,7 +168,7 @@ def model_card() -> dict | None:
 def _blend(model, texts: list[str]) -> list[tuple[str, float, dict[str, float], dict[str, list[str]]]]:
     classes = list(model.classes_) if model is not None else list(CAPABILITY_KEYS)
     if model is not None:
-        probs = model.predict_proba(texts)
+        probs = model.predict_proba([model_text(t) for t in texts])
     else:
         probs = np.full((len(texts), len(classes)), 1.0 / len(classes))
     out = []
